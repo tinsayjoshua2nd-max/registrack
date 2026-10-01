@@ -201,10 +201,16 @@ export const Navbar: React.FC = () => {
                   </span>
                 </div>
 
+                {role === 'student' && (
+                  <p className="mt-2 text-[11px] text-stone-500">
+                    Only updates for your account and document requests appear here.
+                  </p>
+                )}
+
                 <div className="mt-2 max-h-80 overflow-y-auto space-y-2">
                   {notifications.length === 0 ? (
                     <div className="text-center py-6 text-stone-400 text-xs">
-                      No notifications yet.
+                      {role === 'student' ? 'No updates for your account yet.' : 'No notifications yet.'}
                     </div>
                   ) : (
                     notifications.map((n) => (

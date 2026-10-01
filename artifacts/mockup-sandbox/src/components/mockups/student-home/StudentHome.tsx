@@ -61,6 +61,23 @@ export function StudentHome() {
   const [message, setMessage] = useState("");
   const [sentMessages, setSentMessages] = useState<string[]>([]);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [readNotifications, setReadNotifications] = useState<string[]>([]);
+
+  const notifications = [
+    {
+      id: "RT-20481",
+      title: "Transcript of Records",
+      detail: "Registrar verification is in progress.",
+      time: "Today · 9:02 am",
+    },
+    {
+      id: "RT-20436",
+      title: "Certificate of Enrollment",
+      detail: "Your release window is confirmed for Jun 12 after 10 am.",
+      time: "Yesterday · 3:26 pm",
+    },
+  ];
+  const unreadCount = notifications.filter((notification) => !readNotifications.includes(notification.id)).length;
 
   const submitMessage = () => {
     const next = message.trim();
@@ -84,18 +101,69 @@ export function StudentHome() {
               </div>
             </div>
             <button
-              aria-label="Notifications"
+              aria-label={`Notifications & Updates${unreadCount ? `, ${unreadCount} unread` : ""}`}
               onClick={() => setNoticeOpen((open) => !open)}
               className="relative grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/[0.07] text-[#edf4e8] transition hover:bg-white/15"
             >
               <Bell size={18} />
-              <span className="absolute right-[9px] top-[8px] h-[6px] w-[6px] rounded-full bg-[#e9b963] ring-2 ring-[#174d3a]" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#e9b963] px-1 text-[9px] font-extrabold leading-none text-[#294631] ring-2 ring-[#174d3a]">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           </div>
           {noticeOpen && (
-            <div className="absolute right-5 top-[72px] z-20 w-[260px] rounded-2xl border border-[#dbe6d8] bg-[#fffef8] p-4 text-[#274438] shadow-xl">
-              <div className="mb-1 text-xs font-bold">You’re all caught up</div>
-              <p className="text-[11px] leading-5 text-[#718176]">We’ll let you know when a document is ready for release.</p>
+            <div className="absolute right-4 top-[72px] z-20 w-[min(340px,calc(100%-2rem))] overflow-hidden rounded-[18px] border border-[#dbe6d8] bg-[#fffef8] text-[#274438] shadow-[0_16px_40px_rgba(23,55,36,0.2)]">
+              <div className="flex items-start justify-between border-b border-[#e8ece3] px-4 pb-3 pt-4">
+                <div>
+                  <div className="text-[13px] font-bold tracking-[-0.02em]">Notifications &amp; Updates</div>
+                  <p className="mt-1 max-w-[240px] text-[10px] leading-[1.55] text-[#718176]">
+                    Only updates for your account and document requests appear here—not office-wide or other students’ activity.
+                  </p>
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={() => setReadNotifications(notifications.map((notification) => notification.id))}
+                    className="ml-2 shrink-0 pt-0.5 text-[9px] font-bold text-[#39704c] hover:text-[#174d3a]"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[270px] overflow-y-auto p-2">
+                {notifications.map((notification) => {
+                  const isRead = readNotifications.includes(notification.id);
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`flex items-start gap-2.5 rounded-xl px-2.5 py-3 ${isRead ? "" : "bg-[#f0f5ed]"}`}
+                    >
+                      <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${isRead ? "bg-transparent" : "bg-[#6f9b70]"}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate text-[10px] font-bold">{notification.title}</div>
+                          <span className="shrink-0 font-mono text-[8px] text-[#95a094]">{notification.id}</span>
+                        </div>
+                        <p className="mt-1 text-[10px] leading-[1.5] text-[#68796c]">{notification.detail}</p>
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <span className="text-[9px] text-[#97a195]">{notification.time}</span>
+                          <button
+                            onClick={() => setReadNotifications((current) => isRead ? current : [...current, notification.id])}
+                            disabled={isRead}
+                            className="text-[9px] font-semibold text-[#39704c] disabled:cursor-default disabled:text-[#a0aaa0]"
+                          >
+                            {isRead ? "Read" : "Mark read"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="border-t border-[#e8ece3] px-4 py-2 text-center text-[8px] font-medium tracking-wide text-[#9aa598]">
+                SAMPLE ACCOUNT VIEW · MOCK REQUEST ACTIVITY
+              </div>
             </div>
           )}
           <div className="mt-7 flex items-end justify-between">

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getNotificationsForAccount, markNotificationReadForAccount } from '../utils/studentNotifications';
 import {
   Announcement,
   AuthenticatedUser,
@@ -70,6 +71,9 @@ export interface AppNotification {
   read: boolean;
   ticketNumber?: string;
   type: 'status_update' | 'chat_message' | 'announcement' | 'release_ready';
+  audience?: 'student' | 'officer';
+  recipientStudentId?: string;
+  readByStudentIds?: string[];
 }
 
 interface HelpdeskContextType {
@@ -839,7 +843,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [announcements]);
 
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+  const [allNotifications, setNotifications] = useState<AppNotification[]>(() => {
     try {
       const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
       if (stored) {
@@ -915,11 +919,11 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     try {
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(allNotifications));
     } catch (e) {
       console.error('Error saving notifications', e);
     }
-  }, [notifications]);
+  }, [allNotifications]);
 
   // Keep selectedTicket & activeChatTicket in sync if tickets change
   useEffect(() => {
@@ -1076,6 +1080,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       read: false,
       ticketNumber,
       type: 'status_update',
+      audience: 'student',
+      recipientStudentId: newTicket.studentId,
     };
     setNotifications((prev) => [newNotif, ...prev]);
 
@@ -1220,6 +1226,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           read: false,
           ticketNumber: target.ticketNumber,
           type: (isCompleted || isReady) ? 'release_ready' : 'status_update',
+          audience: 'student',
+          recipientStudentId: target.studentId,
         },
         ...prev,
       ]);
@@ -1405,6 +1413,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         read: false,
         ticketNumber: ticket.ticketNumber,
         type: 'status_update',
+        audience: 'student',
+        recipientStudentId: ticket.studentId,
       },
       ...prev,
     ]);
@@ -1499,6 +1509,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         read: false,
         ticketNumber: target.ticketNumber,
         type: 'status_update',
+        audience: 'officer',
       },
       ...prev,
     ]);
@@ -1719,6 +1730,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           read: false,
           ticketNumber: target?.ticketNumber,
           type: 'chat_message',
+          audience: 'student',
+          recipientStudentId: target?.studentId,
         },
         ...prev,
       ]);
@@ -1735,6 +1748,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           read: false,
           ticketNumber: target?.ticketNumber,
           type: 'chat_message',
+          audience: 'officer',
         },
         ...prev,
       ]);
@@ -1767,6 +1781,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             read: false,
             ticketNumber: target?.ticketNumber,
             type: 'chat_message',
+            audience: 'student',
+            recipientStudentId: target?.studentId,
           },
           ...prev,
         ]);
@@ -1775,9 +1791,10 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setNotifications((prev) => markNotificationReadForAccount(prev, id, currentUser, tickets));
   };
 
+  const notifications = getNotificationsForAccount(allNotifications, currentUser, tickets);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Stats computation - matching exact stats numbers or live dynamic count
@@ -2273,6 +2290,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         read: false,
         ticketNumber: ticket.ticketNumber,
         type: 'status_update',
+        audience: 'student',
+        recipientStudentId: ticket.studentId,
       },
       ...prev,
     ]);

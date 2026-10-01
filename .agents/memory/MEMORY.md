@@ -1,1 +1,2 @@
 - [Mobile delivery scope](mobile-delivery-scope.md) — keep Android and iOS compatibility in the existing responsive website, not a native-app migration.
+- [Student notification scope](student-notification-scope.md) — student-only notification changes must preserve officer feeds and independent read status.

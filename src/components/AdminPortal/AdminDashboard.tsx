@@ -26,7 +26,6 @@ import {
 export const AdminDashboard: React.FC = () => {
   const {
     tickets,
-    stats,
     staffList,
     setAdminView,
     assignTicketStaff,
@@ -41,9 +40,25 @@ export const AdminDashboard: React.FC = () => {
   const myDeleted = getMyDeletedRequests();
   const myCompleted = getMyCompletedRequests();
 
-  const urgentTickets = tickets.filter(
+  const dashboardTickets = currentUser?.staffRole === 'receiver'
+    ? tickets
+    : tickets.filter((ticket) => {
+        if (!currentUser?.name) return false;
+        const assignedName = ticket.assignedTo.trim().toLowerCase();
+        const staffName = currentUser.name.trim().toLowerCase();
+        return assignedName === staffName || assignedName.startsWith(`${staffName} (`);
+      });
+  const urgentTickets = dashboardTickets.filter(
     (t) => t.priority === 'Urgent' || t.priority === 'Deadline-sensitive'
   );
+  const pendingCount = dashboardTickets.filter((ticket) => ticket.status === 'pending').length;
+  const processingCount = dashboardTickets.filter((ticket) => ticket.status === 'processing').length;
+  const completedTodayCount = dashboardTickets.filter((ticket) => {
+    const updatedAt = Date.parse(ticket.updatedAt);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return ticket.status === 'completed' && Number.isFinite(updatedAt) && updatedAt >= today.getTime();
+  }).length;
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 space-y-8">
@@ -155,11 +170,11 @@ export const AdminDashboard: React.FC = () => {
               Pending Requests
             </p>
             <p className="mt-2 font-heading font-bold text-3xl sm:text-4xl text-amber-600">
-              {stats.pendingRequests}
+              {pendingCount}
             </p>
             <p className="mt-1 text-[11px] text-stone-600 flex items-center gap-1">
               <Clock className="w-3 h-3 text-amber-500" />
-              <span>Awaiting evaluator review</span>
+              <span>Awaiting staff action</span>
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
@@ -174,7 +189,7 @@ export const AdminDashboard: React.FC = () => {
               Processing
             </p>
             <p className="mt-2 font-heading font-bold text-3xl sm:text-4xl text-sky-600">
-              {stats.processing}
+              {processingCount}
             </p>
             <p className="mt-1 text-[11px] text-stone-600 flex items-center gap-1">
               <Loader2 className="w-3 h-3 text-sky-500 animate-spin" />
@@ -193,7 +208,7 @@ export const AdminDashboard: React.FC = () => {
               Completed Today
             </p>
             <p className="mt-2 font-heading font-bold text-3xl sm:text-4xl text-emerald-600">
-              {stats.completedToday}
+              {completedTodayCount}
             </p>
             <p className="mt-1 text-[11px] text-stone-600 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -212,11 +227,11 @@ export const AdminDashboard: React.FC = () => {
               Total Requests
             </p>
             <p className="mt-2 font-heading font-bold text-3xl sm:text-4xl text-stone-900">
-              {stats.totalRequests}
+              {dashboardTickets.length}
             </p>
             <p className="mt-1 text-[11px] text-stone-600 flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-emerald-600" />
-              <span>Avg: 2.4 days turnaround</span>
+              <span>Requests in assigned queue</span>
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center font-bold text-xl">
@@ -242,7 +257,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {tickets.map((ticket) => (
+            {urgentTickets.map((ticket) => (
               <div
                 key={ticket.id}
                 className="bg-white p-4 rounded-2xl border border-stone-200 hover:border-emerald-300 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -277,6 +292,11 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             ))}
+            {urgentTickets.length === 0 && (
+              <p className="p-6 rounded-2xl border border-stone-200 bg-white text-center text-xs text-stone-500">
+                No urgent or deadline-sensitive tickets in your assigned queue.
+              </p>
+            )}
           </div>
         </div>
 
@@ -316,7 +336,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-stone-100 text-[11px] text-stone-500">
-              💡 Example assignment: <code>REG-2026-00125 → Assigned to: Records Office</code>
+              Workload reflects the current ticket assignments shown in the system.
             </div>
           </div>
         </div>

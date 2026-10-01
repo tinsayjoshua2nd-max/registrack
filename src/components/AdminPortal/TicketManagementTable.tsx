@@ -31,12 +31,8 @@ export const TicketManagementTable: React.FC = () => {
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
   const [deleteReason, setDeleteReason] = useState<string>('Student requested cancellation at window');
 
-  // System roles: Receiver and Super Admin can see all to triage/reassign.
-  // Individual staff (Records Management, Evaluator, Registrar) only see & manage tickets assigned to them!
-  const isUnrestrictedStaff =
-    currentUser?.role === 'superadmin' ||
-    currentUser?.adminRoleTitle?.toLowerCase().includes('receiver') ||
-    currentUser?.name?.toLowerCase().includes('records office');
+  // Receiver is the only staff role with a system-wide ticket view.
+  const isUnrestrictedStaff = currentUser?.staffRole === 'receiver';
 
   const getStaffRoleBadge = (assignedName: string) => {
     const user = users.find(
@@ -52,10 +48,7 @@ export const TicketManagementTable: React.FC = () => {
       if (user.role === 'admin') return 'Admin';
       return user.role;
     }
-    if (assignedName.toLowerCase().includes('receiver') || assignedName.toLowerCase().includes('records office')) return 'Receiver / Receiving';
-    if (assignedName.toLowerCase().includes('ronald')) return 'Records Management';
-    if (assignedName.toLowerCase().includes('elena') || assignedName.toLowerCase().includes('lee')) return 'Evaluator';
-    return 'Staff Evaluator';
+    return 'Staff';
   };
 
   const categories: ('All' | TicketCategory)[] = [
@@ -77,12 +70,14 @@ export const TicketManagementTable: React.FC = () => {
   ];
 
   const filteredTickets = tickets.filter((t) => {
-    // Access control: if not unrestricted, only the assigned staff can see and manage the student's request
+    // Access control: non-receiver staff can only see tickets assigned to their account.
     if (!isUnrestrictedStaff && currentUser?.name) {
-      const currentName = currentUser.name.toLowerCase();
-      const assigned = t.assignedTo.toLowerCase();
-      const isAssigned = assigned.includes(currentName) || currentName.includes(assigned);
+      const currentName = currentUser.name.trim().toLowerCase();
+      const assigned = t.assignedTo.trim().toLowerCase();
+      const isAssigned = assigned === currentName || assigned.startsWith(`${currentName} (`);
       if (!isAssigned) return false;
+    } else if (!isUnrestrictedStaff) {
+      return false;
     }
 
     const matchesCategory = categoryFilter === 'All' || t.category === categoryFilter;
@@ -99,10 +94,14 @@ export const TicketManagementTable: React.FC = () => {
     return matchesCategory && matchesStatus && matchesPriority && matchesSearch;
   });
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!ticketToDelete) return;
-    deleteTicket(ticketToDelete.id, deleteReason || 'Student requested cancellation at window');
-    setTicketToDelete(null);
+    try {
+      await deleteTicket(ticketToDelete.id, deleteReason || 'Student requested cancellation at window');
+      setTicketToDelete(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to delete this request.');
+    }
   };
 
   return (

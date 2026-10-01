@@ -78,7 +78,7 @@ export const UserManagementView: React.FC = () => {
     return true;
   });
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -92,8 +92,8 @@ export const UserManagementView: React.FC = () => {
       return;
     }
 
-    if (!formData.password || formData.password.trim().length < 4) {
-      setFormError('Account login password is required and must be at least 4 characters long.');
+    if (!formData.password || formData.password.trim().length < 8) {
+      setFormError('Account login password is required and must be at least 8 characters long.');
       return;
     }
 
@@ -104,7 +104,8 @@ export const UserManagementView: React.FC = () => {
       }
     }
 
-    createUser({
+    try {
+      await createUser({
       name: formData.name.trim(),
       email: formData.email.trim(),
       password: formData.password.trim(),
@@ -113,7 +114,11 @@ export const UserManagementView: React.FC = () => {
       departmentOrOffice: formData.departmentOrOffice.trim(),
       studentId: formData.role === 'student' ? formData.studentId.trim() : undefined,
       phoneNumber: formData.phoneNumber.trim() || undefined,
-    });
+      });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Unable to create this account.');
+      return;
+    }
 
     setShowCreateModal(false);
     setFormData({
@@ -130,17 +135,22 @@ export const UserManagementView: React.FC = () => {
     setTimeout(() => setNotificationMsg(null), 4000);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
-    updateUser(editingUser.id, {
+    try {
+      await updateUser(editingUser.id, {
       name: editingUser.name,
       email: editingUser.email,
       role: editingUser.role,
       departmentOrOffice: editingUser.departmentOrOffice,
       phoneNumber: editingUser.phoneNumber,
-    });
+      });
+    } catch (error) {
+      setNotificationMsg(error instanceof Error ? error.message : 'Unable to update this account.');
+      return;
+    }
 
     setEditingUser(null);
     setNotificationMsg(`Account updated successfully for ${editingUser.name}`);
@@ -366,7 +376,10 @@ export const UserManagementView: React.FC = () => {
                         <div className="flex items-center justify-end gap-1">
                           {/* Toggle Active / Deactivate */}
                           <button
-                            onClick={() => toggleUserStatus(u.id)}
+                            onClick={async () => {
+                              try { await toggleUserStatus(u.id); }
+                              catch (error) { setNotificationMsg(error instanceof Error ? error.message : 'Unable to change account status.'); }
+                            }}
                             title={u.status === 'active' ? 'Deactivate account' : 'Reactivate account'}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                               u.status === 'active'
@@ -478,8 +491,8 @@ export const UserManagementView: React.FC = () => {
                   <input
                     type={showFormPassword ? 'text' : 'password'}
                     required
-                    minLength={4}
-                    placeholder="Set login password for this account (min 4 characters)..."
+                    minLength={8}
+                    placeholder="Set login password for this account (min 8 characters)..."
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full pl-3 pr-10 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-mono text-xs"
@@ -740,11 +753,15 @@ export const UserManagementView: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteUser(userToDelete.id);
-                  setNotificationMsg(`Account for ${userToDelete.name} has been permanently deleted.`);
-                  setUserToDelete(null);
-                  setTimeout(() => setNotificationMsg(null), 4000);
+                onClick={async () => {
+                  try {
+                    await deleteUser(userToDelete.id);
+                    setNotificationMsg(`Account for ${userToDelete.name} has been permanently deleted.`);
+                    setUserToDelete(null);
+                    setTimeout(() => setNotificationMsg(null), 4000);
+                  } catch (error) {
+                    setNotificationMsg(error instanceof Error ? error.message : 'Unable to delete this account.');
+                  }
                 }}
                 className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-xs"
               >

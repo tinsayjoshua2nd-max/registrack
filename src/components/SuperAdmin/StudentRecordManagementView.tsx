@@ -44,6 +44,7 @@ export const StudentRecordManagementView: React.FC = () => {
     studentId: '',
     name: '',
     email: '',
+    password: '',
     phone: '',
     degreeProgram: 'BS Computer Science',
     yearLevel: '1st Year',
@@ -63,7 +64,7 @@ export const StudentRecordManagementView: React.FC = () => {
     return true;
   });
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -76,24 +77,13 @@ export const StudentRecordManagementView: React.FC = () => {
     const cleanId = newStudent.studentId.trim();
     const cleanName = newStudent.name.trim();
 
-    const res = addStudentRecord({
-      studentId: cleanId,
-      name: cleanName,
-      email: newStudent.email.trim(),
-      phone: newStudent.phone.trim(),
-      degreeProgram: newStudent.degreeProgram,
-      yearLevel: newStudent.yearLevel,
-      enrollmentStatus: newStudent.enrollmentStatus,
-      unitsEnrolled: Number(newStudent.unitsEnrolled) || 18,
-    });
-
-    if (!res.success) {
-      setFormError(res.error || 'Failed to add student record.');
+    if (newStudent.password.length < 8) {
+      setFormError('Set an initial password with at least 8 characters.');
       return;
     }
 
-    // Also provision student login account (initial password is 8-digit Student ID)
-    createUser({
+    try {
+      await createUser({
       name: cleanName,
       email: newStudent.email.trim(),
       role: 'student',
@@ -101,14 +91,23 @@ export const StudentRecordManagementView: React.FC = () => {
       departmentOrOffice: newStudent.degreeProgram,
       studentId: cleanId,
       phoneNumber: newStudent.phone.trim() || undefined,
-      password: cleanId,
-    });
+        password: newStudent.password,
+        degreeProgram: newStudent.degreeProgram,
+        yearLevel: newStudent.yearLevel,
+        enrollmentStatus: newStudent.enrollmentStatus,
+        unitsEnrolled: Number(newStudent.unitsEnrolled) || 0,
+      });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Unable to create this student account.');
+      return;
+    }
 
     setShowAddModal(false);
     setNewStudent({
       studentId: '',
       name: '',
       email: '',
+      password: '',
       phone: '',
       degreeProgram: 'BS Computer Science',
       yearLevel: '1st Year',
@@ -468,6 +467,24 @@ export const StudentRecordManagementView: React.FC = () => {
                   <option value="Alumni">Alumni</option>
                   <option value="On Leave">On Leave</option>
                 </select>
+              </div>
+
+              <div>
+                <label htmlFor="new-student-password" className="block font-bold text-stone-700 mb-1">
+                  Initial Login Password <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  id="new-student-password"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  value={newStudent.password}
+                  onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
+                />
+                <p className="mt-1 text-stone-500">Share this password securely with the student. It will not appear in the account list.</p>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">

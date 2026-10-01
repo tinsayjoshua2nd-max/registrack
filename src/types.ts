@@ -205,6 +205,10 @@ export interface UserAccount {
   createdAt: string;
   avatarColor?: string;
   profilePicture?: string;
+  degreeProgram?: string;
+  yearLevel?: string;
+  enrollmentStatus?: StudentProfile['enrollmentStatus'];
+  unitsEnrolled?: number;
 }
 
 export interface StudentProfile {

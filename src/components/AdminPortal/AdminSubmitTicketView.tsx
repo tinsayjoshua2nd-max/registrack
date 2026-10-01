@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
-import { TicketCategory, TicketPriority, DeliveryOption, StudentProfile } from '../../types';
+import { TicketCategory, TicketPriority, DeliveryOption } from '../../types';
 import {
   FileText,
   User,
@@ -23,7 +23,6 @@ import {
   ChevronRight,
   ExternalLink,
   Users,
-  UserPlus,
   X,
 } from 'lucide-react';
 
@@ -33,8 +32,6 @@ export const AdminSubmitTicketView: React.FC = () => {
     users,
     staffList,
     submitNewTicket,
-    addStudentRecord,
-    createUser,
     setAdminView,
     setRole,
     setStudentView,
@@ -67,7 +64,7 @@ export const AdminSubmitTicketView: React.FC = () => {
         degreeProgram: s.degreeProgram,
         yearLevel: s.yearLevel,
         email: s.email,
-        phone: s.phone || '+63 917 555 0192',
+        phone: s.phone || '',
       });
     });
 
@@ -80,10 +77,10 @@ export const AdminSubmitTicketView: React.FC = () => {
             id: u.id,
             name: u.name,
             studentId: u.studentId!,
-            degreeProgram: u.departmentOrOffice || 'BS Computer Science',
-            yearLevel: '1st Year',
+            degreeProgram: u.departmentOrOffice || '',
+            yearLevel: '',
             email: u.email,
-            phone: u.phoneNumber || '+63 917 555 0192',
+            phone: u.phoneNumber || '',
           });
         }
       });
@@ -96,42 +93,25 @@ export const AdminSubmitTicketView: React.FC = () => {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
   // Form State
-  const [studentName, setStudentName] = useState<string>('Stevie Ray Rotulo');
-  const [studentId, setStudentId] = useState<string>('20231492');
-  const [degreeProgram, setDegreeProgram] = useState<string>('BS Computer Science');
-  const [yearLevel, setYearLevel] = useState<string>('3rd Year');
-  const [email, setEmail] = useState<string>('stevierayrotulo334@gmail.com');
-  const [phone, setPhone] = useState<string>('+63 917 555 0192');
+  const [studentName, setStudentName] = useState<string>('');
+  const [studentId, setStudentId] = useState<string>('');
+  const [degreeProgram, setDegreeProgram] = useState<string>('');
+  const [yearLevel, setYearLevel] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
 
   // Service Category state
   const [category, setCategory] = useState<TicketCategory>('TOR');
   const [documentType, setDocumentType] = useState<string>('Official Transcript of Records (TOR)');
   const [copies, setCopies] = useState<number>(1);
-  const [purpose, setPurpose] = useState<string>('Scholarship Application / Employment Requirement');
+  const [purpose, setPurpose] = useState<string>('');
   const [priority, setPriority] = useState<TicketPriority>('Normal');
-  const [subject, setSubject] = useState<string>('Walk-in Request: Official Transcript of Records (TOR)');
-  const [description, setDescription] = useState<string>(
-    'Student requested official document at counter desk. Records and clearance verified.'
-  );
+  const [subject, setSubject] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
 
   // Staff Reassignment state: Receiver can reassign to records management, evaluator, or registrar
-  const [assignedStaff, setAssignedStaff] = useState<string>('Ms. Elena Ramos');
+  const [assignedStaff, setAssignedStaff] = useState<string>('');
   const [reassignToast, setReassignToast] = useState<string | null>(null);
-
-  // New Student Account Creation Modal (Receiver capability)
-  const [showCreateStudentModal, setShowCreateStudentModal] = useState(false);
-  const [newStudentForm, setNewStudentForm] = useState({
-    studentId: '',
-    name: '',
-    email: '',
-    phone: '',
-    degreeProgram: 'BS Computer Science',
-    yearLevel: '1st Year',
-    enrollmentStatus: 'Regular' as StudentProfile['enrollmentStatus'],
-    unitsEnrolled: 18,
-    password: 'student123',
-  });
-  const [createStudentError, setCreateStudentError] = useState<string | null>(null);
 
   // Success State
   const [createdTicket, setCreatedTicket] = useState<any | null>(null);
@@ -180,7 +160,7 @@ export const AdminSubmitTicketView: React.FC = () => {
     else if (newCat === 'Certified True Copies') defaultDoc = 'Certified True Copies of Documents';
 
     setDocumentType(defaultDoc);
-    setSubject(`Walk-in Request: ${defaultDoc}`);
+    setSubject('');
   };
 
   const handleReassignClick = () => {
@@ -190,82 +170,8 @@ export const AdminSubmitTicketView: React.FC = () => {
     setTimeout(() => setReassignToast(null), 3500);
   };
 
-  const handleCreateStudentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreateStudentError(null);
-
-    const cleanId = newStudentForm.studentId.trim();
-    const cleanName = newStudentForm.name.trim();
-
-    // Validate 8 digits strictly (just like Super Admin)
-    if (!/^\d{8}$/.test(cleanId)) {
-      setCreateStudentError('Student ID must be exactly 8 digits (e.g. 20241098).');
-      return;
-    }
-
-    if (!cleanName) {
-      setCreateStudentError('Please enter student full name.');
-      return;
-    }
-
-    if (!newStudentForm.email.trim()) {
-      setCreateStudentError('Please enter student email address.');
-      return;
-    }
-
-    // Add to student master records
-    const res = addStudentRecord({
-      studentId: cleanId,
-      name: cleanName,
-      email: newStudentForm.email.trim(),
-      phone: newStudentForm.phone.trim(),
-      degreeProgram: newStudentForm.degreeProgram,
-      yearLevel: newStudentForm.yearLevel,
-      enrollmentStatus: newStudentForm.enrollmentStatus,
-      unitsEnrolled: Number(newStudentForm.unitsEnrolled) || 18,
-    });
-
-    if (!res.success) {
-      setCreateStudentError(res.error || 'Failed to create student record.');
-      return;
-    }
-
-    // Also provision user account for student portal authentication (default password is 8-digit ID)
-    createUser({
-      name: cleanName,
-      email: newStudentForm.email.trim(),
-      role: 'student',
-      status: 'active',
-      departmentOrOffice: newStudentForm.degreeProgram,
-      studentId: cleanId,
-      phoneNumber: newStudentForm.phone.trim() || undefined,
-      password: cleanId,
-    });
-
-    // Populate current intake form
-    setStudentName(cleanName);
-    setStudentId(cleanId);
-    setDegreeProgram(newStudentForm.degreeProgram);
-    setYearLevel(newStudentForm.yearLevel);
-    setEmail(newStudentForm.email.trim());
-    setPhone(newStudentForm.phone.trim() || '+63 917 555 0192');
-    setStudentSearchQuery(`${cleanName} (${cleanId})`);
-    setShowCreateStudentModal(false);
-    setNewStudentForm({
-      studentId: '',
-      name: '',
-      email: '',
-      phone: '',
-      degreeProgram: 'BS Computer Science',
-      yearLevel: '1st Year',
-      enrollmentStatus: 'Regular',
-      unitsEnrolled: 18,
-      password: 'student123',
-    });
-  };
-
   // Submission handler
-  const handleGenerateTicket = (e: React.FormEvent) => {
+  const handleGenerateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -284,16 +190,16 @@ export const AdminSubmitTicketView: React.FC = () => {
 
     // Enforce 8 numeric digits
     if (!/^\d{8}$/.test(cleanId)) {
-      setErrorMessage('Student ID must be exactly 8 numbers (e.g. 20231492).');
+      setErrorMessage('Student ID must be exactly 8 numeric digits.');
       return;
     }
 
     try {
-      const generated = submitNewTicket({
+      const generated = await submitNewTicket({
         studentName: cleanName,
         studentId: cleanId,
-        email: email.trim() || `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.university.edu`,
-        phone: phone.trim() || '+63 917 555 0192',
+        email: email.trim(),
+        phone: phone.trim(),
         degreeProgram,
         yearLevel,
         category,
@@ -303,14 +209,14 @@ export const AdminSubmitTicketView: React.FC = () => {
         deliveryOption: 'Office Pick-up',
         priority,
         assignedTo: assignedStaff,
-        subject: subject.trim() || `${category} - ${documentType}`,
-        description: description.trim() || `In-person walk-in request encoded by Receiver / Receiving staff.`,
+        subject: subject.trim(),
+        description: description.trim(),
       });
 
       setCreatedTicket(generated);
     } catch (err) {
       console.error(err);
-      setErrorMessage('Failed to generate ticket. Please try again.');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to generate ticket. Please try again.');
     }
   };
 
@@ -332,11 +238,9 @@ export const AdminSubmitTicketView: React.FC = () => {
     setCategory('Certificates');
     setDocumentType('Certificate of Enrollment');
     setCopies(1);
-    setPurpose('Scholarship Application / Sponsor Renewal');
-    setSubject('Walk-in Request: Certificate of Enrollment');
-    setDescription(
-      'Student requested official Certificate of Enrollment for 1st Term 2026 at Window 4. Clearance verified and receipt stamped.'
-    );
+    setPurpose('');
+    setSubject('');
+    setDescription('');
   };
 
   return (
@@ -550,23 +454,19 @@ export const AdminSubmitTicketView: React.FC = () => {
                   1. Walk-in Student Information
                 </h2>
                 <p className="text-xs text-stone-500">
-                  Search student name or 8-digit ID to auto-fill details, or register a new student account.
+                  Search an existing student record or enter the walk-in student’s details. An account is not required to file a request.
                 </p>
               </div>
 
-              {/* Action Buttons: Search or Create Account */}
+              {/* Student account provisioning is restricted to the Registrar. */}
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateStudentError(null);
-                    setShowCreateStudentModal(true);
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl font-heading font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                <div
+                  role="note"
+                  className="px-3.5 py-2 rounded-xl font-heading font-bold text-xs text-stone-700 bg-stone-100 border border-stone-200 flex items-center gap-1.5 shrink-0 max-w-xs"
                 >
                   <GraduationCap className="w-4 h-4" />
-                  <span>+ Register New Student Profile</span>
-                </button>
+                  <span>Only the Registrar can create student accounts in Student Records.</span>
+                </div>
               </div>
             </div>
 
@@ -579,7 +479,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Type student name or 8-digit ID (e.g. Stevie, 20231492)..."
+                  placeholder="Type a student name or 8-digit ID"
                   value={studentSearchQuery}
                   onFocus={() => setShowSearchDropdown(true)}
                   onChange={(e) => {
@@ -607,7 +507,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white rounded-xl border border-stone-200 shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
                   {searchedStudents.length === 0 ? (
                     <div className="p-3 text-xs text-stone-500 text-center">
-                      No matching student accounts found. Click <strong>+ Register New Student Profile</strong> above to create one.
+                      No matching student records found. Enter the walk-in student’s details below to file this request. The Registrar must create any student account in Student Records.
                     </div>
                   ) : (
                     searchedStudents.map((st) => (
@@ -644,7 +544,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Stevie Ray Rotulo"
+                  placeholder="Enter student full name"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -660,7 +560,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                   required
                   maxLength={8}
                   pattern="\d{8}"
-                  placeholder="e.g. 20231492"
+                  placeholder="Enter 8-digit student ID"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 8))}
                   className="w-full px-3 py-2 font-mono font-bold text-stone-900 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -672,7 +572,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <label className="block font-bold text-stone-700 mb-1">Degree Program</label>
                 <input
                   type="text"
-                  placeholder="e.g. BS Computer Science"
+                  placeholder="Enter degree program"
                   value={degreeProgram}
                   onChange={(e) => setDegreeProgram(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -699,7 +599,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <label className="block font-bold text-stone-700 mb-1">Notification Email</label>
                 <input
                   type="email"
-                  placeholder="e.g. student@university.edu"
+                  placeholder="Enter email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -710,7 +610,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <label className="block font-bold text-stone-700 mb-1">Mobile Number</label>
                 <input
                   type="text"
-                  placeholder="e.g. +63 917 555 0192"
+                  placeholder="Enter mobile number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -750,6 +650,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                     onChange={(e) => setAssignedStaff(e.target.value)}
                     className="px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white font-semibold text-stone-900 focus:border-emerald-600 outline-none"
                   >
+                    <option value="">Select staff member</option>
                     {staffList.map((s) => (
                       <option key={s.id} value={s.name}>
                         {s.name} ({s.role})
@@ -806,7 +707,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Official Transcript of Records (TOR)"
+                  placeholder="Enter requested document type"
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -835,7 +736,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Scholarship Application / Employment Requirement"
+                  placeholder="Enter the student’s intended purpose"
                   value={purpose}
                   onChange={(e) => setPurpose(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
@@ -912,178 +813,6 @@ export const AdminSubmitTicketView: React.FC = () => {
         </form>
       )}
 
-      {/* CREATE STUDENT MODAL (Matches Super Admin Profile Registration Exactly) */}
-      {showCreateStudentModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-emerald-800" />
-                <h3 className="font-heading font-bold text-base text-stone-900">
-                  Register New Student Profile
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateStudentModal(false)}
-                className="text-stone-400 hover:text-stone-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {createStudentError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                {createStudentError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateStudentSubmit} className="space-y-3.5 text-xs">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                <label className="block font-bold text-emerald-950 mb-1">
-                  Student ID (Mandatory 8 Digits) <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  maxLength={8}
-                  required
-                  placeholder="e.g. 20241098"
-                  value={newStudentForm.studentId}
-                  onChange={(e) =>
-                    setNewStudentForm({
-                      ...newStudentForm,
-                      studentId: e.target.value.replace(/[^0-9]/g, ''),
-                    })
-                  }
-                  className="w-full px-3 py-2 font-mono text-sm tracking-widest rounded-xl border border-emerald-300 focus:border-emerald-600 outline-none bg-white font-bold"
-                />
-                <p className="text-[10px] text-emerald-800 mt-1">
-                  Format strictly validated to exactly 8 numerical digits.
-                </p>
-              </div>
-
-              <div>
-                <label className="block font-bold text-stone-700 mb-1">
-                  Student Full Name <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Maria Clara Santos"
-                  value={newStudentForm.name}
-                  onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">
-                    Email Address <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="student@university.edu"
-                    value={newStudentForm.email}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    placeholder="+63 917 000 0000"
-                    value={newStudentForm.phone}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Degree Program</label>
-                  <select
-                    value={newStudentForm.degreeProgram}
-                    onChange={(e) =>
-                      setNewStudentForm({ ...newStudentForm, degreeProgram: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  >
-                    <option value="BS Computer Science">BS Computer Science</option>
-                    <option value="BS Information Technology">BS Information Technology</option>
-                    <option value="BS Business Administration">BS Business Administration</option>
-                    <option value="BS Nursing">BS Nursing</option>
-                    <option value="BS Civil Engineering">BS Civil Engineering</option>
-                    <option value="BA Communication">BA Communication</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Year Level</label>
-                  <select
-                    value={newStudentForm.yearLevel}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, yearLevel: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  >
-                    <option value="1st Year">1st Year</option>
-                    <option value="2nd Year">2nd Year</option>
-                    <option value="3rd Year">3rd Year</option>
-                    <option value="4th Year">4th Year</option>
-                    <option value="Graduating">Graduating</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-stone-700 mb-1">Enrollment Status</label>
-                <select
-                  value={newStudentForm.enrollmentStatus}
-                  onChange={(e) =>
-                    setNewStudentForm({
-                      ...newStudentForm,
-                      enrollmentStatus: e.target.value as any,
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                >
-                  <option value="Regular">Regular</option>
-                  <option value="Irregular">Irregular</option>
-                  <option value="Graduating">Graduating</option>
-                  <option value="Alumni">Alumni</option>
-                  <option value="On Leave">On Leave</option>
-                </select>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 text-stone-600 text-[11px]">
-                💡 New students can log into the portal immediately using their <strong>8-digit Student ID</strong> as their initial password.
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateStudentModal(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer flex items-center gap-1.5 shadow-xs"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Save Student Record</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

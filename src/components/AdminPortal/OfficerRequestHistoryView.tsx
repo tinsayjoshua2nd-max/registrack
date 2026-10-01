@@ -110,9 +110,14 @@ export const OfficerRequestHistoryView: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const handleConfirmRestore = () => {
+  const handleConfirmRestore = async () => {
     if (!recordToRestore) return;
-    restoreDeletedTicket(recordToRestore.id);
+    try {
+      await restoreDeletedTicket(recordToRestore.id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to restore this request.');
+      return;
+    }
     setRestoreSuccessMsg(`Request #${recordToRestore.ticketNumber} successfully restored back to active queue.`);
     setRecordToRestore(null);
     if (selectedDeletedRecord?.id === recordToRestore.id) {

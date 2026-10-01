@@ -20,13 +20,12 @@ export const TrackTicketView: React.FC = () => {
     tickets,
     trackingTicketNumber,
     setTrackingTicketNumber,
-    trackTicketByNumber,
     selectedTicket,
     setSelectedTicket,
     currentStudent,
   } = useHelpdesk();
 
-  const [inputVal, setInputVal] = useState(trackingTicketNumber || 'REG-2026-00125');
+  const [inputVal, setInputVal] = useState(trackingTicketNumber);
   const [copied, setCopied] = useState(false);
 
   // Tickets filed for the currently logged-in student (by 8-digit ID, email, or name)
@@ -38,28 +37,34 @@ export const TrackTicketView: React.FC = () => {
     );
   });
 
-  // Active ticket to view
-  const activeTicket =
-    (selectedTicket && selectedTicket.ticketNumber === inputVal.trim())
-      ? selectedTicket
-      : trackTicketByNumber(inputVal) || studentTickets[0] || tickets[0];
+  // Keep ticket lookup scoped to this student's own requests.
+  const selectedTicketBelongsToStudent = selectedTicket
+    ? studentTickets.some((ticket) => ticket.id === selectedTicket.id)
+    : false;
+  const activeTicket = selectedTicketBelongsToStudent && selectedTicket?.ticketNumber === inputVal.trim()
+    ? selectedTicket
+    : inputVal.trim()
+      ? studentTickets.find((ticket) => ticket.ticketNumber === inputVal.trim()) || null
+      : studentTickets[0] || null;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
     const clean = inputVal.trim();
-    const found = trackTicketByNumber(clean);
+    const found = studentTickets.find((ticket) => ticket.ticketNumber === clean);
     if (found) {
       setSelectedTicket(found);
       setTrackingTicketNumber(found.ticketNumber);
     } else {
       // Check if user entered an 8-digit student ID
-      const byStudentId = tickets.find((t) => t.studentId === clean);
+      const byStudentId = studentTickets.find((t) => t.studentId === clean);
       if (byStudentId) {
         setSelectedTicket(byStudentId);
         setTrackingTicketNumber(byStudentId.ticketNumber);
         setInputVal(byStudentId.ticketNumber);
+        return;
       }
+      setSelectedTicket(null);
     }
   };
 
@@ -157,7 +162,7 @@ export const TrackTicketView: React.FC = () => {
               Track Request by Ticket #
             </h1>
             <p className="text-xs text-stone-500 mt-1">
-              Enter your Ticket Number (e.g. REG-2026-00125) or 8-digit Student ID to check evaluator progress and release date.
+              Enter a ticket number from one of your requests to check progress and estimated release.
             </p>
           </div>
 
@@ -168,7 +173,7 @@ export const TrackTicketView: React.FC = () => {
                 type="text"
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
-                placeholder="Enter Ticket # (e.g. REG-2026-00125)..."
+                placeholder="Enter your ticket number"
                 className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-mono font-medium"
               />
               <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -182,27 +187,6 @@ export const TrackTicketView: React.FC = () => {
           </form>
         </div>
 
-        {/* Quick Sample Selector Chips */}
-        <div className="mt-4 pt-3 border-t border-stone-100 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-stone-400 font-medium">Quick Examples:</span>
-          {tickets.slice(0, 4).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setInputVal(t.ticketNumber);
-                setTrackingTicketNumber(t.ticketNumber);
-                setSelectedTicket(t);
-              }}
-              className={`min-h-10 px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer font-mono ${
-                activeTicket?.id === t.id
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
-                  : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700'
-              }`}
-            >
-              {t.ticketNumber} ({t.category})
-            </button>
-          ))}
-        </div>
       </div>
 
       {activeTicket ? (
@@ -296,10 +280,12 @@ export const TrackTicketView: React.FC = () => {
         <div className="bg-white p-12 rounded-2xl border border-stone-200 text-center">
           <AlertCircle className="w-12 h-12 text-stone-400 mx-auto mb-3" />
           <h3 className="font-heading font-bold text-lg text-stone-800">
-            No Ticket Found with Number &quot;{inputVal}&quot;
+            {studentTickets.length ? `No Ticket Found with Number "${inputVal}"` : 'No Requests Yet'}
           </h3>
           <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
-            Please double-check your ticket format (e.g. REG-2026-00125) or click one of the quick samples above.
+            {studentTickets.length
+              ? 'Check the ticket number and try again, or select one of your requests above.'
+              : 'Your submitted requests will appear here when they are available.'}
           </p>
         </div>
       )}

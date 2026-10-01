@@ -52,18 +52,16 @@ export const SubmitTicketView: React.FC = () => {
   const [category, setCategory] = useState<TicketCategory>('Transcript of Records');
   const [documentType, setDocumentType] = useState<DocumentType>('TOR');
   const [copies, setCopies] = useState<number>(1);
-  const [purpose, setPurpose] = useState<string>('Scholarship Application / Employment Verification');
+  const [purpose, setPurpose] = useState<string>('');
   const [deliveryOption, setDeliveryOption] = useState<'Office Pick-up' | 'Digital Copy (Official PDF)' | 'Courier Delivery'>('Office Pick-up');
   const [priority, setPriority] = useState<TicketPriority>('Normal');
-  const [subject, setSubject] = useState<string>('Request for Official Transcript of Records (TOR)');
-  const [description, setDescription] = useState<string>(
-    'Good day Registrar Office, I would like to request 1 official copy of my Transcript of Records for my upcoming corporate internship and scholarship endorsement. Kindly advise on the evaluation schedule.'
-  );
+  const [subject, setSubject] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
 
   const [studentName, setStudentName] = useState(currentStudent.name);
   const [studentId, setStudentId] = useState(currentStudent.studentId);
   const [email, setEmail] = useState(currentStudent.email);
-  const [phone, setPhone] = useState('+63 917 555 0192');
+  const [phone, setPhone] = useState('');
   const [degreeProgram, setDegreeProgram] = useState(currentStudent.degreeProgram);
   const [yearLevel, setYearLevel] = useState(currentStudent.yearLevel);
 
@@ -74,30 +72,31 @@ export const SubmitTicketView: React.FC = () => {
     setCategory(cat);
     if (cat === 'Transcript of Records') {
       setDocumentType('TOR');
-      setSubject('Request for Official Transcript of Records (TOR)');
+      setSubject('');
     } else if (cat === 'Certificates') {
       setDocumentType('Certificate of Enrollment');
-      setSubject('Request for Certificate of Enrollment');
+      setSubject('');
     } else if (cat === 'Grades') {
       setDocumentType('Certificate of Grades');
-      setSubject('Grade Correction / Incomplete Grade Follow-up');
+      setSubject('');
     } else if (cat === 'ID concerns') {
       setDocumentType('None');
-      setSubject('Lost Student RFID ID Card Replacement');
+      setSubject('');
     } else if (cat === 'Enrollment') {
       setDocumentType('None');
-      setSubject('Enrollment Unit Overload & Adding Subject Petition');
+      setSubject('');
     } else {
       setDocumentType('None');
-      setSubject(`${cat} Inquiry`);
+      setSubject('');
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !subject.trim()) return;
 
-    const created = submitNewTicket({
+    try {
+    const created = await submitNewTicket({
       studentName,
       studentId,
       email,
@@ -115,6 +114,9 @@ export const SubmitTicketView: React.FC = () => {
     });
 
     setSubmittedTicket(created);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to submit this request.');
+    }
   };
 
   const handleCopy = () => {

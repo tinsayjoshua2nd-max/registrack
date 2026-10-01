@@ -31,11 +31,12 @@ export const RegistrarChatView: React.FC = () => {
   // Default to active chat ticket, or first ticket
   const selectedTicket = activeChatTicket || tickets[0];
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !selectedTicket) return;
 
-    sendTicketMessage(
+    try {
+    await sendTicketMessage(
       selectedTicket.id,
       messageInput.trim(),
       role === 'student' ? 'student' : 'registrar',
@@ -43,6 +44,9 @@ export const RegistrarChatView: React.FC = () => {
     );
 
     setMessageInput('');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to send this message.');
+    }
   };
 
   const handleQuickPrompt = (promptText: string) => {

@@ -114,14 +114,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
     updateCurrentProfilePicture('');
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordStatus(null);
 
-    if (newPasswordInput.length < 4) {
+    if (newPasswordInput.length < 8) {
       setPasswordStatus({
         type: 'error',
-        message: 'New password must be at least 4 characters long.',
+        message: 'New password must be at least 8 characters long.',
       });
       return;
     }
@@ -134,7 +134,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       return;
     }
 
-    const res = changeCurrentAccountPassword(newPasswordInput, currentPasswordInput);
+    const res = await changeCurrentAccountPassword(newPasswordInput, currentPasswordInput);
     if (res.success) {
       setPasswordStatus({
         type: 'success',
@@ -388,6 +388,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
 
               <form onSubmit={handlePasswordSubmit} className="space-y-4">
                 <div>
+                  <label htmlFor="profile-current-password" className="block font-bold text-stone-700 mb-1">
+                    Current Password <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    id="profile-current-password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="Enter your current password"
+                    value={currentPasswordInput}
+                    onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-mono text-sm"
+                  />
+                </div>
+                <div>
                   <label className="block font-bold text-stone-700 mb-1">
                     New Account Password <span className="text-rose-600">*</span>
                   </label>
@@ -395,8 +410,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
-                      minLength={4}
-                      placeholder="Enter new password (min 4 characters)..."
+                      minLength={8}
+                      placeholder="Enter new password (min 8 characters)..."
                       value={newPasswordInput}
                       onChange={(e) => setNewPasswordInput(e.target.value)}
                       className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-mono text-sm"
@@ -410,7 +425,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                     </button>
                   </div>
                   <p className="text-[10px] text-stone-500 mt-1">
-                    Must be at least 4 characters long. Choose a secure phrase.
+                    Must be at least 8 characters long. Choose a secure phrase.
                   </p>
                 </div>
 
@@ -421,7 +436,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={4}
+                    minLength={8}
                     placeholder="Confirm new password..."
                     value={confirmPasswordInput}
                     onChange={(e) => setConfirmPasswordInput(e.target.value)}

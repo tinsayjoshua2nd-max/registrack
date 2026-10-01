@@ -26,66 +26,60 @@ export const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'student' | 'admin' | 'superadmin'>('student');
 
   // Student Form State
-  const [studentName, setStudentName] = useState('Stevie Ray Rotulo');
-  const [studentPassword, setStudentPassword] = useState('20231492');
+  const [studentName, setStudentName] = useState('');
+  const [studentPassword, setStudentPassword] = useState('');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [studentError, setStudentError] = useState<string | null>(null);
 
   // Admin Form State
-  const [adminName, setAdminName] = useState('Ms. Elena Ramos');
-  const [adminPassword, setAdminPassword] = useState('admin123');
+  const [adminName, setAdminName] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
 
   // Super Admin Form State
-  const [superAdminName, setSuperAdminName] = useState('Dr. Alexander Reyes');
-  const [superAdminPassword, setSuperAdminPassword] = useState('superadmin123');
+  const [superAdminName, setSuperAdminName] = useState('');
+  const [superAdminPassword, setSuperAdminPassword] = useState('');
   const [showSuperAdminPassword, setShowSuperAdminPassword] = useState(false);
   const [superAdminError, setSuperAdminError] = useState<string | null>(null);
 
-  const handleStudentSubmit = (e: React.FormEvent) => {
+  const handleStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStudentError(null);
-    const result = loginStudent(studentName, studentPassword);
-    if (!result.success) {
-      setStudentError(result.error || 'Failed to log in as student.');
+    try {
+      const result = await loginStudent(studentName, studentPassword);
+      if (!result.success) {
+        setStudentError(result.error || 'Failed to log in as student.');
+      }
+    } catch {
+      setStudentError('Unable to connect to the authentication service. Please try again.');
     }
   };
 
-  const handleAdminSubmit = (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminError(null);
-    const result = loginAdmin(adminName, adminPassword);
-    if (!result.success) {
-      setAdminError(result.error || 'Failed to log in as admin.');
+    try {
+      const result = await loginAdmin(adminName, adminPassword);
+      if (!result.success) {
+        setAdminError(result.error || 'Failed to log in as admin.');
+      }
+    } catch {
+      setAdminError('Unable to connect to the authentication service. Please try again.');
     }
   };
 
-  const handleSuperAdminSubmit = (e: React.FormEvent) => {
+  const handleSuperAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuperAdminError(null);
-    const result = loginSuperAdmin(superAdminName, superAdminPassword);
-    if (!result.success) {
-      setSuperAdminError(result.error || 'Failed to log in as Super Admin.');
+    try {
+      const result = await loginSuperAdmin(superAdminName, superAdminPassword);
+      if (!result.success) {
+        setSuperAdminError(result.error || 'Failed to log in as Registrar.');
+      }
+    } catch {
+      setSuperAdminError('Unable to connect to the authentication service. Please try again.');
     }
-  };
-
-  const handleQuickStudentSelect = (name: string, idOrPassword: string) => {
-    setStudentName(name);
-    setStudentPassword(idOrPassword);
-    setStudentError(null);
-  };
-
-  const handleQuickAdminSelect = (name: string) => {
-    setAdminName(name);
-    setAdminPassword('admin123');
-    setAdminError(null);
-  };
-
-  const handleQuickSuperAdminSelect = () => {
-    setSuperAdminName('Dr. Alexander Reyes');
-    setSuperAdminPassword('superadmin123');
-    setSuperAdminError(null);
   };
 
   return (
@@ -291,7 +285,7 @@ export const LoginPage: React.FC = () => {
                       type="text"
                       required
                       autoComplete="username"
-                      placeholder="e.g. Stevie Ray Rotulo or 8-digit Student ID"
+                      placeholder="Enter your student name or ID"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-stone-300 bg-stone-50/50 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all outline-none"
@@ -300,11 +294,11 @@ export const LoginPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* PASSWORD (Accepts 8-digit Student ID or created password) */}
+                {/* Password assigned during account creation */}
                 <div>
                   <label htmlFor="student-password-input" className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5 flex items-center justify-between">
                     <span>PASSWORD <span className="text-rose-600">*</span></span>
-                    <span className="hidden sm:inline text-[11px] font-normal text-stone-500 font-mono">Student ID or Created Password</span>
+                    <span className="hidden sm:inline text-[11px] font-normal text-stone-500 font-mono">Account Password</span>
                   </label>
                   <div className="relative">
                     <input
@@ -312,7 +306,7 @@ export const LoginPage: React.FC = () => {
                       type={showStudentPassword ? 'text' : 'password'}
                       required
                       autoComplete="current-password"
-                      placeholder="Enter password or 8-digit Student ID"
+                      placeholder="Enter your account password"
                       value={studentPassword}
                       onChange={(e) => setStudentPassword(e.target.value)}
                       className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-stone-300 bg-stone-50/50 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all outline-none font-mono"
@@ -329,38 +323,8 @@ export const LoginPage: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-[11px] text-stone-500 mt-1">
-                    Enter your created password or your 8-digit Student ID. For new students, your default password is your <strong>8-digit Student ID</strong>.
+                    Enter the password assigned to your student account.
                   </p>
-                </div>
-
-                {/* Quick 1-Click Demo Profiles */}
-                <div className="pt-1">
-                  <p className="text-[11px] font-semibold text-stone-500 mb-1.5">
-                    Quick Demo Profiles (8-digit IDs):
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleQuickStudentSelect('Stevie Ray Rotulo', '20231492')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Stevie Ray Rotulo (20231492)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickStudentSelect('Maria Elena Santos', '20224891')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Maria Santos (20224891)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickStudentSelect('Joshua David Lim', '20241052')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Joshua Lim (20241052)
-                    </button>
-                  </div>
                 </div>
 
                 {/* Submit Student Button */}
@@ -383,7 +347,7 @@ export const LoginPage: React.FC = () => {
                   <div>
                     <p className="font-semibold text-stone-900">Official Registrar Personnel Only</p>
                     <p className="text-stone-600 text-[11px] mt-0.5">
-                      Enter your authorized <strong>Admin Name</strong> and <strong>Admin Password</strong> to access the document triage desk, evaluate TOR requests, update release stages, and post advisories.
+                      Enter your authorized staff username and password to access registrar workspaces and document requests.
                     </p>
                   </div>
                 </div>
@@ -398,7 +362,7 @@ export const LoginPage: React.FC = () => {
                 {/* Admin Name */}
                 <div>
                   <label htmlFor="admin-name-input" className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                    Admin Name <span className="text-rose-600">*</span>
+                    Staff Username or Email <span className="text-rose-600">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -406,7 +370,7 @@ export const LoginPage: React.FC = () => {
                       type="text"
                       required
                       autoComplete="username"
-                      placeholder="e.g. Ms. Elena Ramos or Records Office"
+                      placeholder="Enter your staff username or email"
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-stone-300 bg-stone-50/50 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all outline-none"
@@ -440,39 +404,6 @@ export const LoginPage: React.FC = () => {
                       title={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-1 text-[11px] text-stone-500">
-                    <span>Hint: Demo password is <strong className="text-emerald-800">admin123</strong> or <strong className="text-emerald-800">admin</strong></span>
-                  </div>
-                </div>
-
-                {/* Quick Admin Demo Fill */}
-                <div className="pt-1">
-                  <p className="text-[11px] font-semibold text-stone-500 mb-1.5">
-                    Authorized Officer Desks (Click to Auto-fill):
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAdminSelect('Records Office')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Records Office (Receiver / Receiving Officer)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAdminSelect('Ms. Elena Ramos')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Ms. Elena Ramos (Evaluator)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAdminSelect('Mr. Ronald Tan')}
-                      className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-emerald-100 hover:text-emerald-900 border border-stone-200 transition-colors cursor-pointer text-stone-700"
-                    >
-                      Mr. Ronald Tan (Records Management Officer)
                     </button>
                   </div>
                 </div>
@@ -525,7 +456,7 @@ export const LoginPage: React.FC = () => {
                       type="text"
                       required
                       autoComplete="username"
-                      placeholder="e.g. Dr. Alexander Reyes or registrar"
+                      placeholder="Enter your registrar username or email"
                       value={superAdminName}
                       onChange={(e) => setSuperAdminName(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-stone-300 bg-stone-50/50 focus:bg-white focus:border-stone-900 focus:ring-2 focus:ring-stone-200 transition-all outline-none"
@@ -561,24 +492,6 @@ export const LoginPage: React.FC = () => {
                       {showSuperAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <div className="flex items-center justify-between mt-1 text-[11px] text-stone-500">
-                    <span>Default password: <strong className="text-emerald-800">superadmin123</strong> or <strong className="text-emerald-800">registrar123</strong></span>
-                  </div>
-                </div>
-
-                {/* Quick Auto-fill button */}
-                <div className="pt-1">
-                  <p className="text-[11px] font-semibold text-stone-500 mb-1.5">
-                    Authorized University Registrar Profile:
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleQuickSuperAdminSelect}
-                    className="min-h-10 px-3 py-2 text-[11px] font-medium rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-300 transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>Dr. Alexander Reyes (University Registrar)</span>
-                  </button>
                 </div>
 
                 {/* Submit Registrar Button */}

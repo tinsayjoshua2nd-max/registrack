@@ -13,7 +13,6 @@ import {
   User,
   ArrowRight,
   Sparkles,
-  RefreshCw,
   LogOut,
   ShieldCheck,
   Clock,
@@ -44,7 +43,6 @@ export const Navbar: React.FC = () => {
     notifications,
     markNotificationAsRead,
     unreadCount,
-    resetDemoData,
   } = useHelpdesk();
 
   const [headerSearch, setHeaderSearch] = useState('');
@@ -81,14 +79,6 @@ export const Navbar: React.FC = () => {
 
           <div className="flex items-center gap-4 text-emerald-200 text-xs">
             <span className="hidden sm:inline">Operating Hours: Mon - Fri (8:00 AM - 5:00 PM)</span>
-            <button
-              onClick={resetDemoData}
-              title="Reset sample tickets to default demo state"
-              className="hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span className="hidden md:inline">Reset Demo</span>
-            </button>
           </div>
         </div>
       </div>
@@ -121,7 +111,7 @@ export const Navbar: React.FC = () => {
             <input
               id="header-ticket-search"
               type="text"
-              placeholder="Track ticket # (e.g. REG-2026-00125)..."
+              placeholder="Track a request by ticket number"
               value={headerSearch}
               onChange={(e) => {
                 setHeaderSearch(e.target.value);
@@ -142,7 +132,7 @@ export const Navbar: React.FC = () => {
             </button>
             {searchError && (
               <span className="absolute left-0 -bottom-5 text-[10px] text-rose-600 font-medium">
-                Ticket not found. Try REG-2026-00125
+                Ticket not found. Check the number and try again.
               </span>
             )}
           </form>
@@ -329,8 +319,20 @@ export const Navbar: React.FC = () => {
       <div className="bg-stone-50 border-t border-stone-200 px-3 sm:px-6">
         <div className="mobile-nav-scroll max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-1.5 sm:py-2">
           {role === 'student' ? (
-            /* Student Features: Track Request by Ticket # and Registrar Chat */
+            /* Student request, tracking, and support navigation */
             <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <button
+                id="nav-student-submit"
+                onClick={() => setStudentView('submit')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  studentView === 'submit'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/60'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Submit a Request</span>
+              </button>
               <button
                 id="nav-student-track"
                 onClick={() => setStudentView('track')}

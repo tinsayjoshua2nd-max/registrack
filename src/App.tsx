@@ -3,6 +3,7 @@ import { HelpdeskProvider, useHelpdesk } from './context/HelpdeskContext';
 import { LoginPage } from './components/Auth/LoginPage';
 import { Navbar } from './components/Navbar';
 import { TrackTicketView } from './components/StudentPortal/TrackTicketView';
+import { SubmitTicketView } from './components/StudentPortal/SubmitTicketView';
 import { RegistrarChatView } from './components/StudentPortal/RegistrarChatView';
 import { FaqKnowledgeBase } from './components/StudentPortal/FaqKnowledgeBase';
 import { AnnouncementsView } from './components/StudentPortal/AnnouncementsView';
@@ -28,6 +29,7 @@ const MainContent: React.FC = () => {
     <main className="flex-1 pb-8 sm:pb-12">
       {role === 'student' ? (
         <>
+          {studentView === 'submit' && <SubmitTicketView />}
           {studentView === 'track' && <TrackTicketView />}
           {studentView === 'chat' && <RegistrarChatView />}
           {studentView === 'announcements' && <AnnouncementsView />}
@@ -47,7 +49,15 @@ const MainContent: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, role } = useHelpdesk();
+  const { isAuthenticated, role, initializing, startupError } = useHelpdesk();
+
+  if (initializing) {
+    return <div className="min-h-[100dvh] bg-stone-100 flex items-center justify-center text-stone-600 text-sm">Loading RegisTrack…</div>;
+  }
+
+  if (startupError) {
+    return <div className="min-h-[100dvh] bg-stone-100 flex items-center justify-center p-6"><div role="alert" className="max-w-md rounded-2xl bg-white border border-stone-200 p-6 text-sm text-stone-800"><p>{startupError}</p><button onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-emerald-800 text-white px-4 py-2">Retry connection</button></div></div>;
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;

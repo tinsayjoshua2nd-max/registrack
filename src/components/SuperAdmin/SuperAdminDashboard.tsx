@@ -36,7 +36,8 @@ export const SuperAdminDashboard: React.FC = () => {
     return act.actionType === activityFilter;
   });
 
-  const totalStaffAdmins = users.filter((u) => u.role !== 'student').length;
+  const staffRoles = ['receiver', 'records_management', 'evaluator', 'staff', 'admin', 'registrar'];
+  const totalStaffAdmins = users.filter((u) => staffRoles.includes(u.role)).length;
   const resolvedCount = tickets.filter((t) => t.status === 'completed').length;
   const activeUsersCount = users.filter((u) => u.status === 'active').length;
   const deletedCount = getMyDeletedRequests().length;
@@ -59,7 +60,7 @@ export const SuperAdminDashboard: React.FC = () => {
               Registrar Operational Management
             </h1>
             <p className="mt-1 text-sm text-stone-300 max-w-2xl leading-relaxed">
-              Executive monitoring of registrar personnel workload, document release SLA compliance, user role governance, and institutional audit events.
+              Executive monitoring of staff workload, ticket progress, user role governance, and institutional audit events.
             </p>
           </div>
 
@@ -120,7 +121,7 @@ export const SuperAdminDashboard: React.FC = () => {
             {totalStaffAdmins}
           </p>
           <p className="text-xs font-semibold text-stone-500 mt-0.5">Staff & Admins</p>
-          <span className="text-[10px] text-stone-500">Across 5 windows</span>
+          <span className="text-[10px] text-stone-500">Registered staff accounts</span>
         </div>
 
         {/* Total Helpdesk Tickets */}
@@ -152,7 +153,7 @@ export const SuperAdminDashboard: React.FC = () => {
             {stats.pendingRequests}
           </p>
           <p className="text-xs font-semibold text-stone-500 mt-0.5">Pending Action</p>
-          <span className="text-[10px] text-amber-700 font-medium">Awaiting evaluation</span>
+          <span className="text-[10px] text-amber-700 font-medium">Awaiting staff action</span>
         </div>
 
         {/* Resolved Requests */}
@@ -200,21 +201,19 @@ export const SuperAdminDashboard: React.FC = () => {
                 Registrar Operational Metrics
               </h3>
               <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Optimal
+                {tickets.length > 0 ? 'Current records' : 'No data yet'}
               </span>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50">
-                <span className="text-stone-600">SLA Turnaround Compliance</span>
-                <span className="font-mono font-bold text-emerald-800">
-                  96.8%
-                </span>
+                <span className="text-stone-600">Completed Requests</span>
+                <span className="font-mono font-bold text-emerald-800">{resolvedCount}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50">
                 <span className="text-stone-600">Average Turnaround Time</span>
                 <span className="font-mono font-bold text-stone-800">
-                  {stats.avgTurnaroundDays} business days
+                  {stats.avgTurnaroundDays > 0 ? `${stats.avgTurnaroundDays.toFixed(1)} business days` : 'No data yet'}
                 </span>
               </div>
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50">
@@ -269,16 +268,21 @@ export const SuperAdminDashboard: React.FC = () => {
               {users
                 .filter(
                   (u) =>
-                    u.role === 'receiver' ||
-                    u.role === 'records_management' ||
-                    u.role === 'evaluator' ||
-                    u.role === 'registrar' ||
-                    u.role === 'staff'
+                    u.status === 'active' &&
+                    (u.role === 'receiver' ||
+                      u.role === 'records_management' ||
+                      u.role === 'evaluator' ||
+                      u.role === 'registrar' ||
+                      u.role === 'staff' ||
+                      u.role === 'admin')
                 )
-                .slice(0, 5)
                 .map((staff) => {
                   const staffTicketCount = tickets.filter(
-                    (t) => t.assignedTo.includes(staff.name) && t.status !== 'completed'
+                    (t) => {
+                      const assigned = t.assignedTo.trim().toLowerCase();
+                      const name = staff.name.trim().toLowerCase();
+                      return (assigned === name || assigned.startsWith(`${name} (`)) && t.status !== 'completed';
+                    }
                   ).length;
                   return (
                     <div key={staff.id} className="py-2.5 flex items-center justify-between text-xs">
@@ -297,6 +301,18 @@ export const SuperAdminDashboard: React.FC = () => {
                     </div>
                   );
                 })}
+              {users.filter(
+                (u) =>
+                  u.status === 'active' &&
+                  (u.role === 'receiver' ||
+                    u.role === 'records_management' ||
+                    u.role === 'evaluator' ||
+                    u.role === 'registrar' ||
+                    u.role === 'staff' ||
+                    u.role === 'admin')
+              ).length === 0 && (
+                <p className="py-5 text-center text-xs text-stone-500">No active staff accounts yet.</p>
+              )}
             </div>
           </div>
         </div>

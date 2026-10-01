@@ -19,7 +19,7 @@ export const BackupRecoveryView: React.FC = () => {
     tickets,
     exportSystemBackup,
     restoreSystemBackup,
-    addAuditLog,
+    archiveCompletedRequests,
   } = useHelpdesk();
 
   const [notification, setNotification] = useState<string | null>(null);
@@ -42,11 +42,11 @@ export const BackupRecoveryView: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleRestoreSubmit = (e: React.FormEvent) => {
+  const handleRestoreSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!jsonInput.trim()) return;
 
-    const res = restoreSystemBackup(jsonInput.trim());
+    const res = await restoreSystemBackup(jsonInput.trim());
     if (res.success) {
       setShowRestoreModal(false);
       setJsonInput('');
@@ -57,16 +57,20 @@ export const BackupRecoveryView: React.FC = () => {
     }
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (completedCount === 0) {
       alert('There are no completed tickets to archive.');
       return;
     }
 
     if (confirm(`Archive ${completedCount} completed request(s) into cold archival storage?`)) {
-      addAuditLog('COLD_ARCHIVE', 'Backup', `Archived ${completedCount} completed tickets to cold archival.`);
-      setNotification(`Archived ${completedCount} completed ticket(s).`);
-      setTimeout(() => setNotification(null), 3000);
+      try {
+        const count = await archiveCompletedRequests();
+        setNotification(`Archived ${count} completed ticket(s).`);
+        setTimeout(() => setNotification(null), 3000);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Unable to archive completed requests.');
+      }
     }
   };
 
@@ -84,7 +88,7 @@ export const BackupRecoveryView: React.FC = () => {
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            Export point-in-time JSON database snapshots, restore system state, purge completed tickets to cold archival, and inspect live server telemetry.
+            Export and restore operational records and configuration, or move completed requests into history. Login credentials and active sessions are not included in JSON backups.
           </p>
         </div>
 
@@ -119,13 +123,13 @@ export const BackupRecoveryView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <Activity className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              HEALTHY
+              CONNECTED
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
-            99.98%
+            Online
           </p>
-          <p className="text-xs font-semibold text-stone-500 mt-0.5">Core Service Uptime</p>
+          <p className="text-xs font-semibold text-stone-500 mt-0.5">Current Server Connection</p>
           <p className="text-[10px] text-stone-400 mt-1">Registrar API gateway active</p>
         </div>
 
@@ -133,14 +137,14 @@ export const BackupRecoveryView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <Database className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              LOCAL PERSIST
+              DATABASE
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
-            3.4 MB
+            PostgreSQL
           </p>
-          <p className="text-xs font-semibold text-stone-500 mt-0.5">Database Footprint</p>
-          <p className="text-[10px] text-stone-400 mt-1">Indexed records & attachments</p>
+          <p className="text-xs font-semibold text-stone-500 mt-0.5">Persistent Server Storage</p>
+          <p className="text-[10px] text-stone-400 mt-1">Records are not stored in this browser</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
@@ -151,10 +155,10 @@ export const BackupRecoveryView: React.FC = () => {
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
-            4.2 ms
+            Not measured
           </p>
           <p className="text-xs font-semibold text-stone-500 mt-0.5">Query Response Time</p>
-          <p className="text-[10px] text-stone-400 mt-1">Sub-second transaction speed</p>
+          <p className="text-[10px] text-stone-400 mt-1">No historical latency data available</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
@@ -250,7 +254,7 @@ export const BackupRecoveryView: React.FC = () => {
             </div>
 
             <p className="text-xs text-stone-600 leading-relaxed">
-              Paste the contents of your downloaded backup JSON file below. This will safely reconstruct all student accounts, tickets, and configurations.
+              Paste your downloaded operational backup JSON below. This restores requests, histories, student profiles, and configuration. Account passwords and sessions remain unchanged.
             </p>
 
             <form onSubmit={handleRestoreSubmit} className="space-y-3 text-xs">

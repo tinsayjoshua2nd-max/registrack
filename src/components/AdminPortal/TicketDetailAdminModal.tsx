@@ -51,40 +51,34 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [rejectReasonInput, setRejectReasonInput] = useState('');
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [staffError, setStaffError] = useState('');
 
   const normalizedStage: TicketStage =
     ticket.stage === 'reviewed' ? 'processing' : ticket.stage;
 
-  // Resolve standard staff for each system role
-  const receiverUser = users.find((u) => u.role === 'receiver') || { name: 'Records Office', role: 'receiver' as const, departmentOrOffice: 'Window 2' };
-  const recordsUser = users.find((u) => u.role === 'records_management') || { name: 'Mr. Ronald Tan', role: 'records_management' as const, departmentOrOffice: 'Window 1' };
-  const evaluatorUser = users.find((u) => u.role === 'evaluator') || { name: 'Ms. Elena Ramos', role: 'evaluator' as const, departmentOrOffice: 'Window 3' };
-  const registrarUser = users.find((u) => u.role === 'superadmin' || u.role === 'registrar') || { name: 'Dr. Alexander Reyes', role: 'superadmin' as const, departmentOrOffice: 'Office of the University Registrar' };
+  // Only active, real accounts can receive a handoff.
+  const receiverUser = users.find((u) => u.status === 'active' && u.role === 'receiver');
+  const recordsUser = users.find((u) => u.status === 'active' && u.role === 'records_management');
+  const evaluatorUser = users.find((u) => u.status === 'active' && u.role === 'evaluator');
+  const registrarUser = users.find(
+    (u) => u.status === 'active' && (u.role === 'registrar' || u.role === 'superadmin')
+  );
 
   // Current assigned user & role resolution
-  const currentAssigneeUser = users.find(
-    (u) =>
-      u.name.toLowerCase() === ticket.assignedTo.toLowerCase() ||
-      ticket.assignedTo.toLowerCase().includes(u.name.toLowerCase())
-  );
+  const assignedName = ticket.assignedTo.trim().toLowerCase();
+  const currentAssigneeUser = users.find((u) => {
+    const name = u.name.trim().toLowerCase();
+    return assignedName === name || assignedName.startsWith(`${name} (`);
+  });
   const currentRole =
-    currentAssigneeUser?.role ||
-    (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')
-      ? 'receiver'
-      : ticket.assignedTo.toLowerCase().includes('ronald')
-      ? 'records_management'
-      : ticket.assignedTo.toLowerCase().includes('elena') || ticket.assignedTo.toLowerCase().includes('lee')
-      ? 'evaluator'
-      : ticket.assignedTo.toLowerCase().includes('alexander') || ticket.assignedTo.toLowerCase().includes('reyes') || ticket.assignedTo.toLowerCase().includes('registrar')
-      ? 'registrar'
-      : 'receiver');
+    currentAssigneeUser?.role || ticket.assignedRole || currentUser?.staffRole || '';
 
   const getStaffRoleBadge = (assignedName: string) => {
-    const user = users.find(
-      (u) =>
-        u.name.toLowerCase() === assignedName.toLowerCase() ||
-        assignedName.toLowerCase().includes(u.name.toLowerCase())
-    );
+    const normalizedName = assignedName.trim().toLowerCase();
+    const user = users.find((u) => {
+      const name = u.name.trim().toLowerCase();
+      return normalizedName === name || normalizedName.startsWith(`${name} (`);
+    });
     if (user) {
       if (user.role === 'receiver') return 'Receiver / Receiving';
       if (user.role === 'records_management') return 'Records Management';
@@ -93,11 +87,30 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       if (user.role === 'admin') return 'Admin';
       return user.role;
     }
-    if (assignedName.toLowerCase().includes('receiver') || assignedName.toLowerCase().includes('records office')) return 'Receiver / Receiving';
-    if (assignedName.toLowerCase().includes('ronald')) return 'Records Management';
-    if (assignedName.toLowerCase().includes('elena') || assignedName.toLowerCase().includes('lee')) return 'Evaluator';
-    if (assignedName.toLowerCase().includes('alexander') || assignedName.toLowerCase().includes('reyes') || assignedName.toLowerCase().includes('registrar')) return 'University Registrar';
-    return 'Staff Evaluator';
+    return 'Staff';
+  };
+
+  const getMissingStaffError = (role: string) =>
+    `No active ${role} account is available. Ask a Super Admin to create or activate a ${role} account in User Management before handing off this ticket.`;
+
+  const passToStaff = (
+    staff: typeof receiverUser,
+    role: string,
+    stage?: TicketStage,
+    notes?: string
+  ) => {
+    if (!staff) {
+      setStaffError(getMissingStaffError(role));
+      return;
+    }
+    setStaffError('');
+    passTicketToNextRole(
+      ticket.id,
+      staff.name,
+      stage,
+      notes,
+      currentUser?.name || ticket.assignedTo
+    );
   };
 
   // Determine intelligent next role handoff according to institutional workflow
@@ -105,9 +118,12 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     if (normalizedStage === 'submitted') {
       return {
         nextStage: 'processing' as TicketStage,
-        nextStaff: recordsUser.name,
+        nextStaff: recordsUser?.name,
+        requiredRole: 'Records Management',
         nextRoleLabel: 'Records Management',
-        buttonText: `Done Managing Intake → Pass to Records Management (${recordsUser.name})`,
+        buttonText: recordsUser
+          ? `Done Managing Intake → Pass to Records Management (${recordsUser.name})`
+          : 'Records Management account required to continue',
         description: 'Records Management will encode grades and verify academic records integrity.',
         isPass: true,
       };
@@ -116,9 +132,12 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       if (currentRole === 'records_management') {
         return {
           nextStage: 'for_seal' as TicketStage,
-          nextStaff: receiverUser.name,
+          nextStaff: receiverUser?.name,
+          requiredRole: 'Receiver',
           nextRoleLabel: 'Receiver',
-          buttonText: `Done Records Management → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`,
+          buttonText: receiverUser
+            ? `Done Records Management → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`
+            : 'Receiver account required to continue',
           description: 'Records are validated. Document returns to Receiver to apply seal and set Ready for Claiming.',
           isPass: true,
         };
@@ -126,9 +145,12 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       if (currentRole === 'evaluator') {
         return {
           nextStage: 'for_seal' as TicketStage,
-          nextStaff: receiverUser.name,
+          nextStaff: receiverUser?.name,
+          requiredRole: 'Receiver',
           nextRoleLabel: 'Receiver',
-          buttonText: `Evaluation Complete → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`,
+          buttonText: receiverUser
+            ? `Evaluation Complete → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`
+            : 'Receiver account required to continue',
           description: 'Official evaluation and printing complete. Returned to Receiver for counter claiming.',
           isPass: true,
         };
@@ -136,18 +158,24 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       if (currentRole === 'registrar') {
         return {
           nextStage: 'for_seal' as TicketStage,
-          nextStaff: receiverUser.name,
+          nextStaff: receiverUser?.name,
+          requiredRole: 'Receiver',
           nextRoleLabel: 'Receiver',
-          buttonText: `Registrar Approved → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`,
+          buttonText: receiverUser
+            ? `Registrar Approved → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`
+            : 'Receiver account required to continue',
           description: 'Official document reviewed and approved by University Registrar. Returned to Receiver desk for student claiming.',
           isPass: true,
         };
       }
       return {
         nextStage: 'for_seal' as TicketStage,
-        nextStaff: receiverUser.name,
+        nextStaff: receiverUser?.name,
+        requiredRole: 'Receiver',
         nextRoleLabel: 'Receiver',
-        buttonText: `Done Processing → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`,
+        buttonText: receiverUser
+          ? `Done Processing → Return to Receiver (${receiverUser.name}) to Set Ready for Claiming`
+          : 'Receiver account required to continue',
         description: 'Returned to Receiver desk for student claiming.',
         isPass: true,
       };
@@ -155,7 +183,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     if (normalizedStage === 'for_seal') {
       return {
         nextStage: 'ready' as TicketStage,
-        nextStaff: receiverUser.name,
+        nextStaff: receiverUser?.name,
+        requiredRole: 'Receiver',
         nextRoleLabel: 'Receiver',
         buttonText: 'University Seal Applied → Set Status to Ready for Claiming',
         description: 'Official University Dry Seal stamped. Document ready for physical pickup.',
@@ -165,7 +194,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     if (normalizedStage === 'ready') {
       return {
         nextStage: 'completed' as TicketStage,
-        nextStaff: receiverUser.name,
+        nextStaff: receiverUser?.name,
+        requiredRole: 'Receiver',
         nextRoleLabel: 'Receiver',
         buttonText: 'Document Claimed by Student → Mark Completed',
         description: 'Student presented claim stub at the window. Transaction finalized.',
@@ -176,9 +206,18 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   };
 
   const workflowRoleAction = getWorkflowRoleAction();
+  const requiredStaffError =
+    workflowRoleAction && !workflowRoleAction.nextStaff
+      ? getMissingStaffError(workflowRoleAction.requiredRole)
+      : '';
 
   const handleAdvanceNextStage = () => {
     if (!workflowRoleAction) return;
+    if (!workflowRoleAction.nextStaff) {
+      setStaffError(getMissingStaffError(workflowRoleAction.requiredRole));
+      return;
+    }
+    setStaffError('');
 
     if (workflowRoleAction.isPass) {
       passTicketToNextRole(
@@ -209,11 +248,20 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     // Appropriate staff handoff based on target stage
     let targetAssignee = ticket.assignedTo;
     if (newStage === 'submitted') {
+      if (!receiverUser) {
+        setStaffError(getMissingStaffError('Receiver'));
+        return;
+      }
       targetAssignee = receiverUser.name;
     } else if (newStage === 'ready' || newStage === 'completed') {
+      if (!receiverUser) {
+        setStaffError(getMissingStaffError('Receiver'));
+        return;
+      }
       targetAssignee = receiverUser.name;
     }
 
+    setStaffError('');
     updateTicketStatus(ticket.id, newStatus, newStage, undefined, currentUser?.name || ticket.assignedTo, targetAssignee);
   };
 
@@ -244,11 +292,15 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     setInternalNoteInput('');
   };
 
-  const handleSendAdminChat = (e: React.FormEvent) => {
+  const handleSendAdminChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminChatInput.trim()) return;
-    sendTicketMessage(ticket.id, adminChatInput.trim(), 'registrar', ticket.assignedTo);
-    setAdminChatInput('');
+    try {
+      await sendTicketMessage(ticket.id, adminChatInput.trim(), 'registrar', ticket.assignedTo);
+      setAdminChatInput('');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to send this message.');
+    }
   };
 
   const handleSaveEstDate = () => {
@@ -321,7 +373,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
           {/* Staff Assignment: Name & System Role */}
           <div>
             <label className="block text-stone-500 font-semibold mb-1">
-              STAFF ASSIGNED (EVALUATOR):
+              STAFF ASSIGNED:
             </label>
             <div className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white font-bold text-stone-900 flex items-center justify-between shadow-2xs">
               <span className="flex items-center gap-1.5 truncate">
@@ -475,7 +527,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     {workflowRoleAction ? (
                       <button
                         onClick={handleAdvanceNextStage}
-                        className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md hover:scale-[1.01]"
+                        disabled={!workflowRoleAction.nextStaff}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span>{workflowRoleAction.buttonText}</span>
                         <ArrowRight className="w-4 h-4" />
@@ -490,22 +543,30 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     {currentRole === 'records_management' && normalizedStage === 'processing' && (
                       <button
                         onClick={() => {
-                          passTicketToNextRole(
-                            ticket.id,
-                            evaluatorUser.name,
+                          passToStaff(
+                            evaluatorUser,
+                            'Evaluator',
                             'processing',
-                            `Records encoding complete. Passed to Evaluator (${evaluatorUser.name}) for evaluation and printing.`,
-                            currentUser?.name || ticket.assignedTo
+                            evaluatorUser
+                              ? `Records encoding complete. Passed to Evaluator (${evaluatorUser.name}) for evaluation and printing.`
+                              : undefined
                           );
                         }}
                         className="px-3.5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
                       >
-                        <span>Forward to Evaluator ({evaluatorUser.name})</span>
+                        <span>{evaluatorUser ? `Forward to Evaluator (${evaluatorUser.name})` : 'Evaluator unavailable'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
                 </div>
+
+                {(staffError || requiredStaffError) && (
+                  <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{staffError || requiredStaffError}</span>
+                  </div>
+                )}
 
                 {/* Quick Pass to Specific Role Buttons */}
                 <div className="pt-3 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -513,82 +574,76 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     <span className="text-[11px] font-bold text-stone-600 mr-1">Pass Document to Role:</span>
                     <button
                       type="button"
-                      onClick={() =>
-                        passTicketToNextRole(
-                          ticket.id,
-                          receiverUser.name,
-                          normalizedStage === 'submitted' ? 'submitted' : undefined,
-                          `Document handed over to Receiver (${receiverUser.name}).`,
-                          currentUser?.name || ticket.assignedTo
-                        )
-                      }
+                      onClick={() => passToStaff(
+                        receiverUser,
+                        'Receiver',
+                        normalizedStage === 'submitted' ? 'submitted' : undefined,
+                        receiverUser ? `Document handed over to Receiver (${receiverUser.name}).` : undefined
+                      )}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
                         currentRole === 'receiver'
                           ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold'
                           : 'bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-200'
                       }`}
                     >
-                      📥 1. Receiver ({receiverUser.name})
+                      📥 1. Receiver ({receiverUser?.name || 'unavailable'})
                     </button>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        passTicketToNextRole(
-                          ticket.id,
-                          recordsUser.name,
-                          'processing',
-                          `Document passed to Records Management (${recordsUser.name}) for grade encoding.`,
-                          currentUser?.name || ticket.assignedTo
-                        )
-                      }
+                      onClick={() => passToStaff(
+                        recordsUser,
+                        'Records Management',
+                        'processing',
+                        recordsUser
+                          ? `Document passed to Records Management (${recordsUser.name}) for grade encoding.`
+                          : undefined
+                      )}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
                         currentRole === 'records_management'
                           ? 'bg-sky-100 text-sky-900 border-sky-300 font-bold'
                           : 'bg-white hover:bg-sky-50 text-sky-800 border-sky-200'
                       }`}
                     >
-                      📊 2. Records Management ({recordsUser.name})
+                      📊 2. Records Management ({recordsUser?.name || 'unavailable'})
                     </button>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        passTicketToNextRole(
-                          ticket.id,
-                          evaluatorUser.name,
-                          'processing',
-                          `Document passed to Evaluator (${evaluatorUser.name}) for review and printing.`,
-                          currentUser?.name || ticket.assignedTo
-                        )
-                      }
+                      onClick={() => passToStaff(
+                        evaluatorUser,
+                        'Evaluator',
+                        'processing',
+                        evaluatorUser
+                          ? `Document passed to Evaluator (${evaluatorUser.name}) for review and printing.`
+                          : undefined
+                      )}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
                         currentRole === 'evaluator'
                           ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold'
                           : 'bg-white hover:bg-purple-50 text-purple-800 border-purple-200'
                       }`}
                     >
-                      🔍 3. Evaluator ({evaluatorUser.name})
+                      🔍 3. Evaluator ({evaluatorUser?.name || 'unavailable'})
                     </button>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        passTicketToNextRole(
-                          ticket.id,
-                          registrarUser.name,
-                          'processing',
-                          `Document passed to Registrar Officer (${registrarUser.name}) for official executive review and management.`,
-                          currentUser?.name || ticket.assignedTo
-                        )
-                      }
+                      onClick={() => passToStaff(
+                        registrarUser,
+                        'University Registrar',
+                        'processing',
+                        registrarUser
+                          ? `Document passed to Registrar Officer (${registrarUser.name}) for official executive review and management.`
+                          : undefined
+                      )}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
                         currentRole === 'registrar'
                           ? 'bg-stone-900 text-emerald-400 border-stone-800 font-bold shadow-xs'
                           : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-300'
                       }`}
                     >
-                      🎓 4. Registrar ({registrarUser.name})
+                      🎓 4. Registrar ({registrarUser?.name || 'unavailable'})
                     </button>
                   </div>
                 </div>

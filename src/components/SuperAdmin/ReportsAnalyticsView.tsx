@@ -18,7 +18,8 @@ export const ReportsAnalyticsView: React.FC = () => {
   const { tickets, users, stats, studentRecords } = useHelpdesk();
   const [timeRange, setTimeRange] = useState<'all' | '30d' | '7d'>('all');
 
-  const staffMembers = users.filter((u) => u.role === 'registrar' || u.role === 'staff');
+  const reportableStaffRoles = ['receiver', 'records_management', 'evaluator', 'staff', 'admin', 'registrar'];
+  const staffMembers = users.filter((u) => reportableStaffRoles.includes(u.role));
 
   // Categories distribution
   const categoryCounts: Record<string, number> = {};
@@ -28,7 +29,11 @@ export const ReportsAnalyticsView: React.FC = () => {
 
   // Staff performance breakdown
   const staffStats = staffMembers.map((staff) => {
-    const staffTickets = tickets.filter((t) => t.assignedTo.includes(staff.name));
+    const staffName = staff.name.trim().toLowerCase();
+    const staffTickets = tickets.filter((t) => {
+      const assignedName = t.assignedTo.trim().toLowerCase();
+      return assignedName === staffName || assignedName.startsWith(`${staffName} (`);
+    });
     const completed = staffTickets.filter((t) => t.status === 'completed').length;
     const pending = staffTickets.filter((t) => t.status === 'pending' || t.status === 'processing').length;
     const completionRate = staffTickets.length > 0 ? Math.round((completed / staffTickets.length) * 100) : 0;
@@ -39,7 +44,7 @@ export const ReportsAnalyticsView: React.FC = () => {
       total: staffTickets.length,
       completed,
       pending,
-      rate: completionRate,
+      rate: staffTickets.length > 0 ? completionRate : null,
     };
   });
 
@@ -77,7 +82,7 @@ export const ReportsAnalyticsView: React.FC = () => {
               Registrar Service Intelligence & Reports
             </h1>
             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-              Institutional SLA Analytics
+              Operational Analytics
             </span>
           </div>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
@@ -100,7 +105,7 @@ export const ReportsAnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <TrendingUp className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              +14.2% YoY
+              {tickets.length > 0 ? 'Recorded' : 'No data yet'}
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
@@ -114,11 +119,11 @@ export const ReportsAnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <Clock className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              SLA MET
+              {stats.avgTurnaroundDays > 0 ? 'From completed records' : 'No data yet'}
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
-            {stats.avgTurnaroundDays} Days
+            {stats.avgTurnaroundDays > 0 ? `${stats.avgTurnaroundDays.toFixed(1)} Days` : 'No data yet'}
           </p>
           <p className="text-xs font-semibold text-stone-500 mt-0.5">Average Turnaround</p>
           <p className="text-[10px] text-stone-400 mt-1">Submission to document release</p>
@@ -128,13 +133,15 @@ export const ReportsAnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <CheckCircle2 className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              OPTIMAL
+              {tickets.length > 0 ? 'From records' : 'No data yet'}
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
-            {tickets.length > 0 ? Math.round((tickets.filter(t => t.status === 'completed').length / tickets.length) * 100) : 0}%
+            {tickets.length > 0
+              ? `${Math.round((tickets.filter((t) => t.status === 'completed').length / tickets.length) * 100)}%`
+              : 'No data yet'}
           </p>
-          <p className="text-xs font-semibold text-stone-500 mt-0.5">Resolution Efficiency Rate</p>
+          <p className="text-xs font-semibold text-stone-500 mt-0.5">Ticket Completion Rate</p>
           <p className="text-[10px] text-stone-400 mt-1">Completed vs total intake</p>
         </div>
 
@@ -142,14 +149,14 @@ export const ReportsAnalyticsView: React.FC = () => {
           <div className="flex items-center justify-between text-stone-400">
             <Users className="w-4 h-4 text-emerald-700" />
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              VERIFIED
+              {studentRecords.length > 0 ? 'Registered' : 'No data yet'}
             </span>
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
             {studentRecords.length}
           </p>
-          <p className="text-xs font-semibold text-stone-500 mt-0.5">Active Student Base</p>
-          <p className="text-[10px] text-stone-400 mt-1">Validated 8-digit accounts</p>
+          <p className="text-xs font-semibold text-stone-500 mt-0.5">Student Records</p>
+          <p className="text-[10px] text-stone-400 mt-1">Profiles on file</p>
         </div>
       </div>
 
@@ -161,9 +168,11 @@ export const ReportsAnalyticsView: React.FC = () => {
             <div>
               <h3 className="font-heading font-bold text-sm text-stone-900 flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-700" />
-                Registrar Evaluator Performance & Workload
+                Registrar Staff Performance & Workload
               </h3>
-              <p className="text-[11px] text-stone-500">Resolution rates across active service windows</p>
+              <p className="text-[11px] text-stone-500">
+                {staffMembers.length} staff accounts • Resolution rates from assigned ticket records
+              </p>
             </div>
           </div>
 
@@ -171,7 +180,7 @@ export const ReportsAnalyticsView: React.FC = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase text-[10px]">
-                  <th className="py-2.5 px-3">Evaluator / Officer</th>
+                  <th className="py-2.5 px-3">Staff / Officer</th>
                   <th className="py-2.5 px-3">Office Window</th>
                   <th className="py-2.5 px-3 text-center">Assigned</th>
                   <th className="py-2.5 px-3 text-center">Completed</th>
@@ -186,16 +195,29 @@ export const ReportsAnalyticsView: React.FC = () => {
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-stone-800">{s.total}</td>
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-700">{s.completed}</td>
                     <td className="py-2.5 px-3 text-right">
-                      <span className="font-mono font-bold text-stone-900">{s.rate}%</span>
-                      <div className="w-20 bg-stone-100 h-1.5 rounded-full ml-auto mt-1 overflow-hidden">
-                        <div
-                          className="bg-emerald-700 h-full rounded-full"
-                          style={{ width: `${s.rate}%` }}
-                        />
-                      </div>
+                        {s.rate === null ? (
+                          <span className="font-medium text-stone-400">No data yet</span>
+                        ) : (
+                          <>
+                            <span className="font-mono font-bold text-stone-900">{s.rate}%</span>
+                            <div className="w-20 bg-stone-100 h-1.5 rounded-full ml-auto mt-1 overflow-hidden">
+                              <div
+                                className="bg-emerald-700 h-full rounded-full"
+                                style={{ width: `${s.rate}%` }}
+                              />
+                            </div>
+                          </>
+                        )}
                     </td>
                   </tr>
                 ))}
+                {staffStats.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-stone-400">
+                      No staff accounts yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -214,6 +236,9 @@ export const ReportsAnalyticsView: React.FC = () => {
           </div>
 
           <div className="space-y-3 pt-1">
+            {Object.keys(categoryCounts).length === 0 && (
+              <p className="py-8 text-center text-xs text-stone-400">No data yet.</p>
+            )}
             {Object.entries(categoryCounts).map(([cat, count]) => {
               const pct = tickets.length > 0 ? Math.round((count / tickets.length) * 100) : 0;
               return (

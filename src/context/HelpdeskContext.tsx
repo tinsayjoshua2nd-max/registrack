@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { getNotificationsForAccount, markNotificationReadForAccount } from '../utils/studentNotifications';
 import {
   Announcement,
@@ -29,26 +29,16 @@ import {
   AccountRoleType,
 } from '../types';
 import {
-  INITIAL_ANNOUNCEMENTS,
   INITIAL_FAQS,
-  INITIAL_STAFF,
-  INITIAL_TICKETS,
 } from '../data/mockData';
 import {
-  INITIAL_USERS,
-  INITIAL_STUDENT_RECORDS,
   INITIAL_ROLES,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_SYSTEM_ACTIVITIES,
   INITIAL_REQUEST_CATEGORIES,
   DEFAULT_SYSTEM_SETTINGS,
 } from '../data/superAdminData';
-import {
-  INITIAL_DELETED_REQUESTS,
-  INITIAL_COMPLETED_REQUESTS,
-} from '../data/historyData';
 
 export type StudentNavView =
+  | 'submit'
   | 'track'
   | 'chat'
   | 'announcements'
@@ -78,13 +68,15 @@ export interface AppNotification {
 
 interface HelpdeskContextType {
   // Authentication
+  initializing: boolean;
+  startupError: string | null;
   isAuthenticated: boolean;
   currentUser: AuthenticatedUser | null;
-  loginStudent: (studentIdentifier: string, passwordOrStudentId: string, degreeProgram?: string) => { success: boolean; error?: string };
-  loginAdmin: (adminName: string, adminPassword: string) => { success: boolean; error?: string };
-  loginSuperAdmin: (username: string, password: string) => { success: boolean; error?: string };
+  loginStudent: (studentIdentifier: string, passwordOrStudentId: string, degreeProgram?: string) => Promise<{ success: boolean; error?: string }>;
+  loginAdmin: (adminName: string, adminPassword: string) => Promise<{ success: boolean; error?: string }>;
+  loginSuperAdmin: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  changeCurrentAccountPassword: (newPassword: string, oldPassword?: string) => { success: boolean; error?: string };
+  changeCurrentAccountPassword: (newPassword: string, oldPassword?: string) => Promise<{ success: boolean; error?: string }>;
   updateCurrentProfilePicture: (pictureDataUrl: string) => void;
 
   role: UserRole;
@@ -118,7 +110,7 @@ interface HelpdeskContextType {
   trackTicketByNumber: (num: string) => Ticket | null;
 
   // Actions
-  submitNewTicket: (data: Partial<Ticket>) => Ticket;
+  submitNewTicket: (data: Partial<Ticket>) => Promise<Ticket>;
   updateTicketStatus: (
     ticketId: string,
     status: TicketStatus,
@@ -143,10 +135,10 @@ interface HelpdeskContextType {
     message: string,
     role: 'student' | 'registrar',
     senderName: string
-  ) => void;
-  cancelTicket: (ticketId: string, reason?: string) => void;
-  deleteTicket: (ticketId: string, reason?: string) => void;
-  restoreDeletedTicket: (recordId: string) => void;
+  ) => Promise<Ticket>;
+  cancelTicket: (ticketId: string, reason?: string) => Promise<void>;
+  deleteTicket: (ticketId: string, reason?: string) => Promise<void>;
+  restoreDeletedTicket: (recordId: string) => Promise<Ticket>;
   recordCompletedRequest: (ticket: Ticket, notes?: string, customActor?: string) => void;
 
   // Officer History Feature
@@ -162,11 +154,11 @@ interface HelpdeskContextType {
 
   // Super Admin Management Actions
   users: UserAccount[];
-  createUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'lastLogin'>) => void;
-  updateUser: (id: string, updates: Partial<UserAccount>) => void;
-  deleteUser: (id: string) => void;
-  toggleUserStatus: (id: string) => void;
-  resetUserPassword: (id: string) => string;
+  createUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'lastLogin'>) => Promise<void>;
+  updateUser: (id: string, updates: Partial<UserAccount>) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  toggleUserStatus: (id: string) => Promise<void>;
+  resetUserPassword: (id: string) => Promise<string>;
 
   studentRecords: StudentProfile[];
   addStudentRecord: (student: Omit<StudentProfile, 'id' | 'isArchived' | 'requestCount' | 'joinedDate'>) => { success: boolean; error?: string };
@@ -202,7 +194,8 @@ interface HelpdeskContextType {
   deleteSuperAnnouncement: (id: string) => void;
   broadcastNotification: (title: string, message: string) => void;
   exportSystemBackup: () => string;
-  restoreSystemBackup: (jsonContent: string) => { success: boolean; error?: string };
+  restoreSystemBackup: (jsonContent: string) => Promise<{ success: boolean; error?: string }>;
+  archiveCompletedRequests: () => Promise<number>;
 
   // Staff, FAQ & Announcements
   staffList: StaffMember[];
@@ -217,15 +210,71 @@ interface HelpdeskContextType {
   markNotificationAsRead: (id: string) => void;
   unreadCount: number;
 
-  // Quick helper to reset demo data if needed
-  resetDemoData: () => void;
 }
 
 const HelpdeskContext = createContext<HelpdeskContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'registrack_portal_tickets_v2';
-const NOTIFICATIONS_STORAGE_KEY = 'registrack_portal_notifications_v2';
-const USER_SESSION_KEY = 'registrack_auth_session_v2';
+const LEGACY_KEYS = [
+  'registrack_portal_tickets_v2', 'registrack_portal_notifications_v2', 'registrack_auth_session_v2',
+  'registrack_users_v2', 'registrack_students_v2', 'registrack_deleted_accounts_v2',
+  'registrack_roles_v2', 'registrack_audit_logs_v2', 'registrack_activities_v2',
+  'registrack_categories_v2', 'registrack_settings_v2', 'registrack_announcements_v2',
+  'registrack_deleted_requests_history_v2', 'registrack_completed_requests_history_v2',
+];
+type StateResourceKey =
+  | 'tickets'
+  | 'notifications'
+  | 'studentRecords'
+  | 'roles'
+  | 'auditLogs'
+  | 'systemActivities'
+  | 'requestCategories'
+  | 'systemSettings'
+  | 'announcements'
+  | 'deletedRequestsHistory'
+  | 'completedRequestsHistory';
+const STATE_RESOURCE_KEYS: StateResourceKey[] = [
+  'tickets',
+  'notifications',
+  'studentRecords',
+  'roles',
+  'auditLogs',
+  'systemActivities',
+  'requestCategories',
+  'systemSettings',
+  'announcements',
+  'deletedRequestsHistory',
+  'completedRequestsHistory',
+];
+const serializeState = (value: unknown): string => JSON.stringify(value);
+const identityForAccount = (user: AuthenticatedUser | null): string => {
+  if (!user) return '';
+  const id = (user as AuthenticatedUser & { id?: string }).id;
+  return id || user.email || `${user.role}:${user.studentId || user.name}`;
+};
+
+let pendingMutations = 0;
+let lastMutationAt = 0;
+async function api<T>(path: string, options?: RequestInit): Promise<T> {
+  const mutation = options?.method && options.method !== 'GET';
+  if (mutation) { pendingMutations++; lastMutationAt = Date.now(); }
+  try {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      ...options,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      const error = new Error(result.error || 'Request failed. Please try again.') as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+    return result as T;
+  } finally {
+    if (mutation) { pendingMutations--; lastMutationAt = Date.now(); }
+  }
+}
 
 let idCounter = 0;
 const generateUniqueId = (prefix: string): string => {
@@ -253,75 +302,26 @@ export const formatRealtimeArrival = (dateObj: Date = new Date()) => {
 };
 
 export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => {
-    try {
-      const stored = localStorage.getItem(USER_SESSION_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Failed to read auth session from storage', e);
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [initializing, setInitializing] = useState(true);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [stateReady, setStateReady] = useState(false);
+  const accountGenerationRef = useRef(0);
+  const accountIdentityRef = useRef('');
+  const stateVersionsRef = useRef<Record<string, number>>({});
+  const stateBaselinesRef = useRef<Record<string, string>>({});
+  const stateSavesInFlightRef = useRef<Set<string>>(new Set());
+  const queuedStateSavesRef = useRef<Record<string, {
+    payload: unknown;
+    serialized: string;
+    generation: number;
+    identity: string;
+  }>>({});
+  const conflictedResourcesRef = useRef<Set<string>>(new Set());
 
-  const USERS_STORAGE_KEY = 'registrack_users_v2';
-  const STUDENTS_STORAGE_KEY = 'registrack_students_v2';
-  const DELETED_ACCOUNTS_KEY = 'registrack_deleted_accounts_v2';
+  const [users, setUsers] = useState<UserAccount[]>([]);
 
-  const [deletedAccounts, setDeletedAccounts] = useState<
-    Array<{ id: string; email?: string; studentId?: string; name?: string; deletedAt: string }>
-  >(() => {
-    try {
-      const stored = localStorage.getItem(DELETED_ACCOUNTS_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
-
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    try {
-      const stored = localStorage.getItem(USERS_STORAGE_KEY);
-      if (stored) {
-        const parsed: UserAccount[] = JSON.parse(stored);
-        return parsed.map((u) => {
-          if (!u.password) {
-            const def = INITIAL_USERS.find((init) => init.id === u.id || init.email === u.email);
-            if (def?.password) {
-              return { ...u, password: def.password };
-            }
-          }
-          return u;
-        });
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_USERS;
-  });
-
-  const [studentRecords, setStudentRecords] = useState<StudentProfile[]>(() => {
-    try {
-      const stored = localStorage.getItem(STUDENTS_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_STUDENT_RECORDS;
-  });
-
-  const isAccountDeleted = (identifier: string): boolean => {
-    if (!identifier) return false;
-    const clean = identifier.trim().toLowerCase();
-    return deletedAccounts.some((d) => {
-      if (d.email && d.email.toLowerCase() === clean) return true;
-      if (d.name && d.name.toLowerCase() === clean) return true;
-      if (d.studentId && d.studentId.trim() === clean) return true;
-      return false;
-    });
-  };
+  const [studentRecords, setStudentRecords] = useState<StudentProfile[]>([]);
 
   const [role, setRole] = useState<UserRole>(() => currentUser?.role || 'student');
   const [studentView, setStudentView] = useState<StudentNavView>('track');
@@ -331,599 +331,431 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isAuthenticated = currentUser !== null;
 
   const currentStudent = {
-    name: currentUser?.role === 'student' && currentUser.name ? currentUser.name : 'Stevie Ray Rotulo',
-    studentId: currentUser?.role === 'student' && currentUser.studentId ? currentUser.studentId : '20231492',
-    email: currentUser?.role === 'student' && currentUser.email ? currentUser.email : 'stevierayrotulo334@gmail.com',
-    degreeProgram: currentUser?.role === 'student' && currentUser.degreeProgram ? currentUser.degreeProgram : 'BS Computer Science',
-    yearLevel: currentUser?.role === 'student' && currentUser.yearLevel ? currentUser.yearLevel : '3rd Year',
+    name: currentUser?.role === 'student' ? currentUser.name : '',
+    studentId: currentUser?.role === 'student' ? currentUser.studentId || '' : '',
+    email: currentUser?.role === 'student' ? currentUser.email || '' : '',
+    degreeProgram: currentUser?.role === 'student' ? currentUser.degreeProgram || '' : '',
+    yearLevel: currentUser?.role === 'student' ? currentUser.yearLevel || '' : '',
   };
 
-  const loginStudent = (
-    studentIdentifier: string,
-    passwordOrStudentId: string,
-    degreeProgram?: string
-  ) => {
-    const trimmedIdentifier = studentIdentifier.trim();
-    const trimmedPassword = passwordOrStudentId.trim();
-
-    if (!trimmedIdentifier) {
-      return { success: false, error: 'Please enter your student name or student ID.' };
+  const hydrateAccount = async (authenticated: AuthenticatedUser, generation: number) => {
+    const { user, state } = await api<{ user: AuthenticatedUser; state: Record<string, unknown> }>('/api/bootstrap');
+    if (generation !== accountGenerationRef.current) return;
+    const account = user || authenticated;
+    const identity = identityForAccount(account);
+    if (stateReady && currentUser && accountIdentityRef.current === identity) {
+      setCurrentUser(account);
+      setRole(account.role);
+      applyServerSnapshot(state, generation);
+      return;
     }
-    if (!trimmedPassword) {
-      return { success: false, error: 'Please enter your password or 8-digit student ID.' };
-    }
-
-    if (isAccountDeleted(trimmedIdentifier) || isAccountDeleted(trimmedPassword)) {
-      return {
-        success: false,
-        error:
-          'This account has been deleted by the Super Administrator and can no longer be accessed.',
-      };
-    }
-
-    // Match student record from student master records or user directory
-    const studentRec =
-      studentRecords.find(
-        (s) =>
-          s.name.toLowerCase() === trimmedIdentifier.toLowerCase() ||
-          s.studentId === trimmedIdentifier ||
-          s.email?.toLowerCase() === trimmedIdentifier.toLowerCase()
-      ) ||
-      studentRecords.find(
-        (s) =>
-          s.name.toLowerCase().includes(trimmedIdentifier.toLowerCase()) ||
-          trimmedIdentifier.toLowerCase().includes(s.name.toLowerCase())
-      );
-
-    const matchedUser =
-      users.find(
-        (u) =>
-          u.role === 'student' &&
-          (u.name.toLowerCase() === trimmedIdentifier.toLowerCase() ||
-            u.studentId === trimmedIdentifier ||
-            u.email?.toLowerCase() === trimmedIdentifier.toLowerCase())
-      ) ||
-      users.find(
-        (u) =>
-          u.role === 'student' &&
-          (u.name.toLowerCase().includes(trimmedIdentifier.toLowerCase()) ||
-            trimmedIdentifier.toLowerCase().includes(u.name.toLowerCase()))
-      );
-
-    // Fallback: If student entered their 8-digit ID in the PASSWORD field
-    let finalStudentRec = studentRec;
-    let finalMatchedUser = matchedUser;
-
-    if (!finalStudentRec && !finalMatchedUser && /^\d{8}$/.test(trimmedPassword)) {
-      finalStudentRec = studentRecords.find((s) => s.studentId === trimmedPassword);
-      finalMatchedUser = users.find(
-        (u) => u.role === 'student' && u.studentId === trimmedPassword
-      );
-    }
-
-    if (!finalStudentRec && !finalMatchedUser) {
-      return {
-        success: false,
-        error:
-          'Student account not found in university records. Please check your name/ID or contact the registrar desk.',
-      };
-    }
-
-    if (finalMatchedUser && finalMatchedUser.status !== 'active') {
-      return {
-        success: false,
-        error: 'This student account has been deactivated. Please contact the registrar office.',
-      };
-    }
-
-    // Official 8-digit student ID and custom password
-    const officialStudentId = finalStudentRec?.studentId || finalMatchedUser?.studentId || '';
-    const userPassword = finalMatchedUser?.password;
-
-    // Verify Password:
-    // 1) Student can use their 8-digit student ID (especially new students)
-    // 2) Student can use the password they created
-    // 3) Default 'student123'
-    const isStudentIdMatch = officialStudentId && trimmedPassword === officialStudentId;
-    const isCreatedPasswordMatch = userPassword && trimmedPassword === userPassword;
-    const isDefaultPasswordMatch = trimmedPassword === 'student123';
-
-    if (!isStudentIdMatch && !isCreatedPasswordMatch && !isDefaultPasswordMatch) {
-      return {
-        success: false,
-        error:
-          'Incorrect password. You may use your created password or your 8-digit Student ID.',
-      };
-    }
-
-    // Degree program and student details already encoded in the system
-    const resolvedProgram =
-      finalStudentRec?.degreeProgram ||
-      finalMatchedUser?.departmentOrOffice ||
-      degreeProgram ||
-      'BS Computer Science';
-
-    const resolvedYear = finalStudentRec?.yearLevel || '1st Year';
-    const resolvedName = finalStudentRec?.name || finalMatchedUser?.name || trimmedIdentifier;
-    const resolvedId =
-      officialStudentId || (trimmedPassword.length === 8 ? trimmedPassword : '20231492');
-    const resolvedEmail =
-      finalMatchedUser?.email ||
-      finalStudentRec?.email ||
-      `${resolvedName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@student.university.edu`;
-
-    const user: AuthenticatedUser = {
-      role: 'student',
-      name: resolvedName,
-      studentId: resolvedId,
-      degreeProgram: resolvedProgram,
-      yearLevel: resolvedYear,
-      email: resolvedEmail,
-      profilePicture: finalMatchedUser?.profilePicture || finalStudentRec?.profilePicture,
+    accountIdentityRef.current = identity;
+    const resources: Record<StateResourceKey, unknown> = {
+      tickets: Array.isArray(state.tickets) ? state.tickets : [],
+      notifications: Array.isArray(state.notifications) ? state.notifications : [],
+      studentRecords: Array.isArray(state.studentRecords) ? state.studentRecords : [],
+      roles: Array.isArray(state.roles) ? state.roles : INITIAL_ROLES,
+      auditLogs: Array.isArray(state.auditLogs) ? state.auditLogs : [],
+      systemActivities: Array.isArray(state.systemActivities) ? state.systemActivities : [],
+      requestCategories: Array.isArray(state.requestCategories) ? state.requestCategories : INITIAL_REQUEST_CATEGORIES,
+      systemSettings: state.systemSettings && typeof state.systemSettings === 'object' ? state.systemSettings : DEFAULT_SYSTEM_SETTINGS,
+      announcements: Array.isArray(state.announcements) ? state.announcements : [],
+      deletedRequestsHistory: Array.isArray(state.deletedRequestsHistory) ? state.deletedRequestsHistory : [],
+      completedRequestsHistory: Array.isArray(state.completedRequestsHistory) ? state.completedRequestsHistory : [],
     };
-
-    setCurrentUser(user);
-    setRole('student');
-    setStudentView('track');
-    try {
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
-    } catch (e) {
-      console.error(e);
-    }
-    return { success: true };
+    const versions = state._versions && typeof state._versions === 'object'
+      ? state._versions as Record<string, number>
+      : {};
+    stateBaselinesRef.current = {};
+    stateVersionsRef.current = {};
+    conflictedResourcesRef.current.clear();
+    STATE_RESOURCE_KEYS.forEach((key) => {
+      stateBaselinesRef.current[key] = serializeState(resources[key]);
+      stateVersionsRef.current[key] = Number.isInteger(versions[key]) ? versions[key] : 0;
+    });
+    setCurrentUser(account);
+    setRole(account.role);
+    if (account.role === 'student') setStudentView('track');
+    if (account.role === 'admin') setAdminView('dashboard');
+    if (account.role === 'superadmin') setSuperAdminView('dashboard');
+    setTickets(resources.tickets as Ticket[]);
+    setUsers(Array.isArray(state.users) ? state.users.map((account) => {
+      const safeAccount = { ...(account as UserAccount) };
+      delete safeAccount.password;
+      return safeAccount;
+    }) : []);
+    setStudentRecords(resources.studentRecords as StudentProfile[]);
+    setRoles(resources.roles as SystemRole[]);
+    setAuditLogs(resources.auditLogs as AuditLog[]);
+    setSystemActivities(resources.systemActivities as SystemActivityItem[]);
+    setRequestCategories(resources.requestCategories as RequestCategoryConfig[]);
+    setSystemSettings(resources.systemSettings as SystemSettings);
+    setAnnouncements(resources.announcements as Announcement[]);
+    setDeletedRequestsHistory(resources.deletedRequestsHistory as DeletedRequestRecord[]);
+    setCompletedRequestsHistory(resources.completedRequestsHistory as CompletedRequestRecord[]);
+    setNotifications(resources.notifications as AppNotification[]);
+    setStateReady(true);
   };
 
-  const loginAdmin = (adminName: string, adminPassword: string) => {
-    const trimmed = adminName.trim();
-    const trimmedPassword = adminPassword.trim();
-
-    if (!trimmed) {
-      return { success: false, error: 'Please enter your admin name or email.' };
-    }
-    if (!trimmedPassword) {
-      return { success: false, error: 'Please enter your admin password.' };
-    }
-
-    if (isAccountDeleted(trimmed)) {
-      return { success: false, error: 'This account has been deleted by the Super Administrator and can no longer be accessed.' };
+  useEffect(() => {
+    const generation = ++accountGenerationRef.current;
+    let cancelled = false;
+    const handleSaveError = (event: Event) => setStartupError(`Your latest changes could not be saved: ${(event as CustomEvent<string>).detail} Retry the connection before continuing.`);
+    window.addEventListener('registrack-save-error', handleSaveError);
+    try {
+      [...LEGACY_KEYS, ...Object.keys(localStorage).filter(key => key.startsWith('registrack_'))]
+        .forEach((key) => localStorage.removeItem(key));
+    } catch (error) {
+      console.error('Unable to clear legacy browser data:', error);
     }
 
-    const matchedUser = users.find(
-      (u) =>
-        (u.name.toLowerCase() === trimmed.toLowerCase() ||
-         u.email.toLowerCase() === trimmed.toLowerCase()) &&
-        (u.role === 'registrar' ||
-         u.role === 'receiver' ||
-         u.role === 'records_management' ||
-         u.role === 'evaluator' ||
-         u.role === 'admin' ||
-         u.role === 'superadmin' ||
-         u.role === 'staff')
-    );
-
-    if (matchedUser) {
-      if (matchedUser.status !== 'active') {
-        return { success: false, error: 'This account has been deactivated. Please contact the Super Administrator.' };
-      }
-      if (matchedUser.password && matchedUser.password !== trimmedPassword) {
-        return { success: false, error: 'Incorrect password for this registrar account.' };
-      }
-    } else {
-      // Fallback for default demo accounts
-      if (
-        trimmed !== 'Ms. Elena Ramos' &&
-        trimmed !== 'Records Office' &&
-        trimmed !== 'Mr. Ronald Tan' &&
-        trimmed !== 'Mrs. Grace Cruz' &&
-        trimmedPassword !== 'admin123'
-      ) {
-        return { success: false, error: 'Account not found or password incorrect.' };
-      }
-    }
-
-    let roleTitle = 'Registrar Officer';
-    let detectedRole: AccountRoleType = matchedUser?.role || 'staff';
-    if (matchedUser?.role === 'receiver' || trimmed.toLowerCase().includes('records office') || trimmed.toLowerCase().includes('receiver')) {
-      roleTitle = 'Receiver / Receiving Officer';
-      detectedRole = 'receiver';
-    } else if (matchedUser?.role === 'records_management' || trimmed.toLowerCase().includes('ronald')) {
-      roleTitle = 'Records Management Officer';
-      detectedRole = 'records_management';
-    } else if (matchedUser?.role === 'evaluator' || trimmed.toLowerCase().includes('elena') || trimmed.toLowerCase().includes('lee')) {
-      roleTitle = 'Evaluator';
-      detectedRole = 'evaluator';
-    }
-
-    const user: AuthenticatedUser = {
-      role: 'admin',
-      name: matchedUser?.name || trimmed,
-      adminRoleTitle: roleTitle,
-      staffRole: detectedRole,
-      office: matchedUser?.departmentOrOffice || 'Office of the Registrar',
-      email: matchedUser?.email || (trimmed.includes('@') ? trimmed : `${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '.')}@registrar.edu`),
-      profilePicture: matchedUser?.profilePicture,
+    api<{ user: AuthenticatedUser | null }>('/api/session')
+      .then(({ user }) => {
+        if (cancelled || generation !== accountGenerationRef.current) return;
+        if (user) return hydrateAccount(user, generation);
+        accountIdentityRef.current = '';
+        stateBaselinesRef.current = {};
+        stateVersionsRef.current = {};
+        setStateReady(true);
+      })
+      .catch((error: Error) => {
+        if (!cancelled && generation === accountGenerationRef.current) setStartupError(error.message);
+      })
+      .finally(() => {
+        if (!cancelled && generation === accountGenerationRef.current) setInitializing(false);
+      });
+    return () => {
+      cancelled = true;
+      window.removeEventListener('registrack-save-error', handleSaveError);
     };
+  }, []);
 
-    setCurrentUser(user);
-    setRole('admin');
-    setAdminView('dashboard');
+  const performLogin = async (
+    requestedRole: 'student' | 'admin' | 'superadmin',
+    identifier: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!identifier.trim() || !password) return { success: false, error: 'Enter your username and password.' };
+    const generation = ++accountGenerationRef.current;
+    accountIdentityRef.current = '';
+    setStateReady(false);
     try {
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
-    } catch (e) {
-      console.error(e);
+      const { user } = await api<{ user: AuthenticatedUser }>('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ role: requestedRole, identifier: identifier.trim(), password }),
+      });
+      if (generation !== accountGenerationRef.current) return { success: false, error: 'Your session changed before sign-in completed.' };
+      await hydrateAccount(user, generation);
+      setStartupError(null);
+      return { success: true };
+    } catch (error) {
+      if (generation === accountGenerationRef.current) setStateReady(true);
+      return { success: false, error: error instanceof Error ? error.message : 'Unable to sign in.' };
     }
-    return { success: true };
   };
 
-  const loginSuperAdmin = (username: string, password: string) => {
-    const trimmed = username.trim();
-    const trimmedPassword = password.trim();
+  const loginStudent = (identifier: string, password: string) => performLogin('student', identifier, password);
+  const loginAdmin = (identifier: string, password: string) => performLogin('admin', identifier, password);
+  const loginSuperAdmin = (identifier: string, password: string) => performLogin('superadmin', identifier, password);
 
-    if (!trimmed) {
-      return { success: false, error: 'Please enter your Registrar username or email.' };
-    }
-    if (!trimmedPassword || trimmedPassword.length < 3) {
-      return { success: false, error: 'Password must be at least 3 characters long.' };
-    }
-
-    if (isAccountDeleted(trimmed)) {
-      return { success: false, error: 'This account has been deleted by the Registrar and can no longer be accessed.' };
-    }
-
-    const matchedUser = users.find(
-      (u) =>
-        (u.role === 'superadmin' || u.role === 'registrar') &&
-        (u.name.toLowerCase() === trimmed.toLowerCase() ||
-         u.email.toLowerCase() === trimmed.toLowerCase() ||
-         trimmed.toLowerCase() === 'superadmin' ||
-         trimmed.toLowerCase() === 'registrar')
-    );
-
-    if (matchedUser) {
-      if (matchedUser.status !== 'active') {
-        return { success: false, error: 'This Registrar account has been deactivated.' };
-      }
-      if (matchedUser.password && matchedUser.password !== trimmedPassword && trimmedPassword !== 'superadmin123' && trimmedPassword !== 'registrar123') {
-        return { success: false, error: 'Incorrect password for University Registrar.' };
-      }
-    } else {
-      if (trimmedPassword !== 'superadmin123' && trimmedPassword !== 'registrar123' && trimmedPassword !== 'admin123') {
-        return { success: false, error: 'Invalid Registrar credentials.' };
-      }
-    }
-
-    const user: AuthenticatedUser = {
-      role: 'superadmin',
-      name: matchedUser?.name || 'Dr. Alexander Reyes',
-      email: matchedUser?.email || (trimmed.includes('@') ? trimmed : `registrar@university.edu`),
-      adminRoleTitle: 'University Registrar & Chief Academic Records Officer',
-      office: matchedUser?.departmentOrOffice || 'Office of the University Registrar, Room 101',
-      permissions: ['all'],
-      profilePicture: matchedUser?.profilePicture,
-    };
-
-    setCurrentUser(user);
-    setRole('superadmin');
-    setSuperAdminView('dashboard');
+  const logout = async () => {
+    ++accountGenerationRef.current;
+    accountIdentityRef.current = '';
+    stateBaselinesRef.current = {};
+    stateVersionsRef.current = {};
+    conflictedResourcesRef.current.clear();
+    queuedStateSavesRef.current = {};
+    setCurrentUser(null);
+    setStateReady(false);
     try {
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
-    } catch (e) {
-      console.error(e);
+      await api('/api/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Unable to end server session:', error);
     }
-    return { success: true };
-  };
-
-  const logout = () => {
     setCurrentUser(null);
     setRole('student');
     setStudentView('track');
-    try {
-      localStorage.removeItem(USER_SESSION_KEY);
-    } catch (e) {
-      console.error(e);
-    }
+    setTickets([]);
+    setUsers([]);
+    setStudentRecords([]);
+    setNotifications([]);
+    setAnnouncements([]);
+    setAuditLogs([]);
+    setSystemActivities([]);
+    setDeletedRequestsHistory([]);
+    setCompletedRequestsHistory([]);
+    setRoles(INITIAL_ROLES);
+    setRequestCategories(INITIAL_REQUEST_CATEGORIES);
+    setSystemSettings(DEFAULT_SYSTEM_SETTINGS);
+    setSelectedTicket(null);
+    setActiveChatTicket(null);
+    setTrackingTicketNumber('');
+    setStateReady(false);
   };
 
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Failed to load tickets from localStorage', e);
-    }
-    return INITIAL_TICKETS;
-  });
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const staffList: StaffMember[] = users
+    .filter((user) => user.role !== 'student' && user.role !== 'superadmin' && user.status === 'active')
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      role: user.role.replaceAll('_', ' '),
+      office: user.departmentOrOffice,
+      email: user.email,
+      activeTicketsCount: tickets.filter(
+        (ticket) => ticket.assignedTo === user.name && (ticket.status === 'pending' || ticket.status === 'processing')
+      ).length,
+    }));
 
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [activeChatTicket, setActiveChatTicket] = useState<Ticket | null>(null);
-  const [trackingTicketNumber, setTrackingTicketNumber] = useState<string>('REG-2026-00125');
+  const [trackingTicketNumber, setTrackingTicketNumber] = useState<string>('');
 
-  const [staffList] = useState<StaffMember[]>(INITIAL_STAFF);
   const [faqs] = useState<FAQItem[]>(INITIAL_FAQS);
 
-  const ROLES_STORAGE_KEY = 'registrack_roles_v2';
-  const AUDIT_STORAGE_KEY = 'registrack_audit_logs_v2';
-  const ACTIVITIES_STORAGE_KEY = 'registrack_activities_v2';
-  const CATEGORIES_STORAGE_KEY = 'registrack_categories_v2';
-  const SETTINGS_STORAGE_KEY = 'registrack_settings_v2';
-  const ANNOUNCEMENTS_STORAGE_KEY = 'registrack_announcements_v2';
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [roles, setRoles] = useState<SystemRole[]>(INITIAL_ROLES);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [systemActivities, setSystemActivities] = useState<SystemActivityItem[]>([]);
+  const [requestCategories, setRequestCategories] = useState<RequestCategoryConfig[]>(INITIAL_REQUEST_CATEGORIES);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(DEFAULT_SYSTEM_SETTINGS);
+  const [deletedRequestsHistory, setDeletedRequestsHistory] = useState<DeletedRequestRecord[]>([]);
+  const [completedRequestsHistory, setCompletedRequestsHistory] = useState<CompletedRequestRecord[]>([]);
 
-  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
-    try {
-      const stored = localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_ANNOUNCEMENTS;
+  const [allNotifications, setNotifications] = useState<AppNotification[]>([]);
+  const latestResourcesRef = useRef<Record<StateResourceKey, unknown>>({
+    tickets,
+    notifications: allNotifications,
+    studentRecords,
+    roles,
+    auditLogs,
+    systemActivities,
+    requestCategories,
+    systemSettings,
+    announcements,
+    deletedRequestsHistory,
+    completedRequestsHistory,
   });
+  latestResourcesRef.current = {
+    tickets,
+    notifications: allNotifications,
+    studentRecords,
+    roles,
+    auditLogs,
+    systemActivities,
+    requestCategories,
+    systemSettings,
+    announcements,
+    deletedRequestsHistory,
+    completedRequestsHistory,
+  };
 
-  const [roles, setRoles] = useState<SystemRole[]>(() => {
-    try {
-      const stored = localStorage.getItem(ROLES_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
+  const setStateResource = (key: StateResourceKey, value: unknown) => {
+    switch (key) {
+      case 'tickets': setTickets(value as Ticket[]); break;
+      case 'notifications': setNotifications(value as AppNotification[]); break;
+      case 'studentRecords': setStudentRecords(value as StudentProfile[]); break;
+      case 'roles': setRoles(value as SystemRole[]); break;
+      case 'auditLogs': setAuditLogs(value as AuditLog[]); break;
+      case 'systemActivities': setSystemActivities(value as SystemActivityItem[]); break;
+      case 'requestCategories': setRequestCategories(value as RequestCategoryConfig[]); break;
+      case 'systemSettings': setSystemSettings(value as SystemSettings); break;
+      case 'announcements': setAnnouncements(value as Announcement[]); break;
+      case 'deletedRequestsHistory': setDeletedRequestsHistory(value as DeletedRequestRecord[]); break;
+      case 'completedRequestsHistory': setCompletedRequestsHistory(value as CompletedRequestRecord[]); break;
     }
-    return INITIAL_ROLES;
-  });
+  };
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    try {
-      const stored = localStorage.getItem(AUDIT_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const seen = new Set<string>();
-          return parsed.map((item) => {
-            let id = item.id;
-            if (!id || seen.has(id)) {
-              id = generateUniqueId('log');
+  const reportResourceConflict = (key: StateResourceKey) => {
+    conflictedResourcesRef.current.add(key);
+    delete queuedStateSavesRef.current[key];
+    const message = `${key} changed on the server while you were editing. Your local changes were kept; reload the page before editing this data again.`;
+    setStartupError(message);
+    window.dispatchEvent(new CustomEvent('registrack-save-error', { detail: message }));
+  };
+
+  const drainStateSaves = (key: StateResourceKey) => {
+    if (stateSavesInFlightRef.current.has(key)) return;
+    stateSavesInFlightRef.current.add(key);
+    void (async () => {
+      try {
+        while (true) {
+          const job = queuedStateSavesRef.current[key];
+          if (!job) break;
+          delete queuedStateSavesRef.current[key];
+          if (
+            job.generation !== accountGenerationRef.current ||
+            job.identity !== accountIdentityRef.current ||
+            conflictedResourcesRef.current.has(key)
+          ) continue;
+          if (job.serialized === stateBaselinesRef.current[key]) continue;
+
+          try {
+            const result = await api<{ payload: unknown; version: number }>(`/api/state/${key}`, {
+              method: 'PUT',
+              body: JSON.stringify({ payload: job.payload, version: stateVersionsRef.current[key] ?? 0 }),
+            });
+            if (
+              job.generation !== accountGenerationRef.current ||
+              job.identity !== accountIdentityRef.current
+            ) continue;
+            if (!Number.isInteger(result.version) || result.payload === undefined) {
+              throw new Error(`The server returned an invalid save acknowledgement for ${key}.`);
             }
-            seen.add(id);
-            return { ...item, id };
-          });
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_AUDIT_LOGS;
-  });
-
-  const [systemActivities, setSystemActivities] = useState<SystemActivityItem[]>(() => {
-    try {
-      const stored = localStorage.getItem(ACTIVITIES_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const seen = new Set<string>();
-          const sanitized: SystemActivityItem[] = [];
-          for (let i = 0; i < parsed.length; i++) {
-            const item = parsed[i];
-            if (!item) continue;
-            let id = item.id;
-            if (!id || seen.has(id)) {
-              id = generateUniqueId('act');
+            stateVersionsRef.current[key] = result.version;
+            stateBaselinesRef.current[key] = serializeState(result.payload);
+            if (serializeState(latestResourcesRef.current[key]) === job.serialized) {
+              setStateResource(key, result.payload);
             }
-            seen.add(id);
-            sanitized.push({ ...item, id });
+          } catch (error) {
+            if (
+              job.generation !== accountGenerationRef.current ||
+              job.identity !== accountIdentityRef.current
+            ) continue;
+            if ((error as Error & { status?: number }).status === 409) {
+              reportResourceConflict(key);
+            } else {
+              window.dispatchEvent(new CustomEvent('registrack-save-error', {
+                detail: error instanceof Error ? error.message : 'Connection failed.',
+              }));
+            }
+            break;
           }
-          return sanitized;
+        }
+      } finally {
+        stateSavesInFlightRef.current.delete(key);
+        if (
+          queuedStateSavesRef.current[key] &&
+          !conflictedResourcesRef.current.has(key)
+        ) drainStateSaves(key);
+      }
+    })();
+  };
+
+  const saveStateResource = (key: StateResourceKey, payload: unknown) => {
+    if (!stateReady || !currentUser || !accountIdentityRef.current) return;
+    if (currentUser.role === 'student' && key !== 'tickets' && key !== 'notifications') return;
+    if (currentUser.role !== 'superadmin' && ['studentRecords', 'roles', 'requestCategories', 'systemSettings'].includes(key)) return;
+    const serialized = serializeState(payload);
+    if (serialized === stateBaselinesRef.current[key] || conflictedResourcesRef.current.has(key)) return;
+    queuedStateSavesRef.current[key] = {
+      payload,
+      serialized,
+      generation: accountGenerationRef.current,
+      identity: accountIdentityRef.current,
+    };
+    drainStateSaves(key);
+  };
+
+  const flushStateResource = async (key: StateResourceKey) => {
+    const payload = latestResourcesRef.current[key];
+    const serialized = serializeState(payload);
+    if (serialized !== stateBaselinesRef.current[key]) saveStateResource(key, payload);
+    const deadline = Date.now() + 15000;
+    while (stateSavesInFlightRef.current.has(key) || queuedStateSavesRef.current[key]) {
+      if (Date.now() > deadline) throw new Error(`Saving ${key} timed out. Please retry.`);
+      await new Promise((resolve) => window.setTimeout(resolve, 25));
+    }
+    if (conflictedResourcesRef.current.has(key)) {
+      throw new Error(`${key} changed on the server. Reload the page before continuing.`);
+    }
+    if (serializeState(latestResourcesRef.current[key]) !== stateBaselinesRef.current[key]) {
+      throw new Error(`${key} still has unsaved changes. Restore the connection and retry before continuing.`);
+    }
+  };
+
+  const applyServerSnapshot = (state: Record<string, unknown>, generation: number) => {
+    if (generation !== accountGenerationRef.current) return;
+    const versions = state._versions && typeof state._versions === 'object'
+      ? state._versions as Record<string, number>
+      : {};
+    for (const key of STATE_RESOURCE_KEYS) {
+      const serverValue = state[key];
+      if (serverValue === undefined) continue;
+      const serverSerialized = serializeState(serverValue);
+      const serverVersion = Number.isInteger(versions[key]) ? versions[key] : 0;
+      const localValue = latestResourcesRef.current[key];
+      const localSerialized = serializeState(localValue);
+      const baseline = stateBaselinesRef.current[key];
+      const isDirty = baseline !== undefined && localSerialized !== baseline;
+
+      if (isDirty) {
+        if (serverSerialized !== baseline) {
+          reportResourceConflict(key);
+        } else {
+          stateVersionsRef.current[key] = serverVersion;
+          saveStateResource(key, localValue);
+        }
+        continue;
+      }
+      stateVersionsRef.current[key] = serverVersion;
+      stateBaselinesRef.current[key] = serverSerialized;
+      conflictedResourcesRef.current.delete(key);
+      if (localSerialized !== serverSerialized) setStateResource(key, serverValue);
+    }
+
+    if (Array.isArray(state.users)) {
+      const safeUsers = state.users.map((account) => {
+        const safeAccount = { ...(account as UserAccount) };
+        delete safeAccount.password;
+        return safeAccount;
+      });
+      setUsers((previous) => serializeState(previous) === serializeState(safeUsers) ? previous : safeUsers);
+    }
+  };
+
+  const refreshServerState = async (generation: number) => {
+    const state = await api<Record<string, unknown>>('/api/state');
+    if (generation !== accountGenerationRef.current) return;
+    applyServerSnapshot(state, generation);
+  };
+
+  useEffect(() => { saveStateResource('deletedRequestsHistory', deletedRequestsHistory); }, [deletedRequestsHistory, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('completedRequestsHistory', completedRequestsHistory); }, [completedRequestsHistory, stateReady, currentUser]);
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') saveStateResource('studentRecords', studentRecords);
+  }, [studentRecords, stateReady, currentUser]);
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') saveStateResource('roles', roles);
+  }, [roles, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('auditLogs', auditLogs); }, [auditLogs, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('systemActivities', systemActivities); }, [systemActivities, stateReady, currentUser]);
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') saveStateResource('requestCategories', requestCategories);
+  }, [requestCategories, stateReady, currentUser]);
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') saveStateResource('systemSettings', systemSettings);
+  }, [systemSettings, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('announcements', announcements); }, [announcements, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('tickets', tickets); }, [tickets, stateReady, currentUser]);
+  useEffect(() => { saveStateResource('notifications', allNotifications); }, [allNotifications, stateReady, currentUser]);
+
+  useEffect(() => {
+    if (!stateReady || !currentUser) return;
+    let cancelled = false;
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    const interval = window.setInterval(async () => {
+      if (document.hidden || pendingMutations || Date.now() - lastMutationAt < 1000) return;
+      const startedAt = Date.now();
+      try {
+        const state = await api<Record<string, unknown>>('/api/state');
+        if (
+          cancelled ||
+          generation !== accountGenerationRef.current ||
+          identity !== accountIdentityRef.current ||
+          pendingMutations ||
+          lastMutationAt >= startedAt
+        ) return;
+        applyServerSnapshot(state, generation);
+      } catch (error) {
+        if (!cancelled && generation === accountGenerationRef.current) {
+          setStartupError(error instanceof Error ? error.message : 'Unable to refresh saved records.');
         }
       }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_SYSTEM_ACTIVITIES;
-  });
-
-  const [requestCategories, setRequestCategories] = useState<RequestCategoryConfig[]>(() => {
-    try {
-      const stored = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_REQUEST_CATEGORIES;
-  });
-
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
-    try {
-      const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return DEFAULT_SYSTEM_SETTINGS;
-  });
-
-  const DELETED_REQUESTS_KEY = 'registrack_deleted_requests_history_v2';
-  const COMPLETED_REQUESTS_KEY = 'registrack_completed_requests_history_v2';
-
-  const [deletedRequestsHistory, setDeletedRequestsHistory] = useState<DeletedRequestRecord[]>(() => {
-    try {
-      const stored = localStorage.getItem(DELETED_REQUESTS_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_DELETED_REQUESTS;
-  });
-
-  const [completedRequestsHistory, setCompletedRequestsHistory] = useState<CompletedRequestRecord[]>(() => {
-    try {
-      const stored = localStorage.getItem(COMPLETED_REQUESTS_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_COMPLETED_REQUESTS;
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(DELETED_REQUESTS_KEY, JSON.stringify(deletedRequestsHistory));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [deletedRequestsHistory]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(COMPLETED_REQUESTS_KEY, JSON.stringify(completedRequestsHistory));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [completedRequestsHistory]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [users]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STUDENTS_STORAGE_KEY, JSON.stringify(studentRecords));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [studentRecords]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(roles));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [roles]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditLogs));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [auditLogs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(ACTIVITIES_STORAGE_KEY, JSON.stringify(systemActivities));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [systemActivities]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(requestCategories));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [requestCategories]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(systemSettings));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [systemSettings]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(announcements));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [announcements]);
-
-  const [allNotifications, setNotifications] = useState<AppNotification[]>(() => {
-    try {
-      const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const nowInfo = formatRealtimeArrival();
-          return parsed.map((n) => ({
-            ...n,
-            exactTime: n.exactTime || nowInfo.exactTime,
-            dateStr: n.dateStr || nowInfo.dateStr,
-            timestamp: n.timestamp && n.timestamp.includes('•') ? n.timestamp : `${n.dateStr || nowInfo.dateStr} • ${n.exactTime || nowInfo.exactTime}`,
-          }));
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    const now = new Date();
-    const t1 = new Date(now.getTime() - 15 * 60 * 1000);
-    const t2 = new Date(now.getTime() - 60 * 60 * 1000);
-    const t3 = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-
-    const f1 = formatRealtimeArrival(t1);
-    const f2 = formatRealtimeArrival(t2);
-    const f3 = formatRealtimeArrival(t3);
-
-    return [
-      {
-        id: 'notif-1',
-        title: 'Status Update: Completed',
-        message: 'Your Good Moral Certificate (REG-2026-00118) is completed and ready for claiming at Window 4 in the school registrar office.',
-        timestamp: f1.timestamp,
-        exactTime: f1.exactTime,
-        dateStr: f1.dateStr,
-        read: false,
-        ticketNumber: 'REG-2026-00118',
-        type: 'release_ready',
-      },
-      {
-        id: 'notif-2',
-        title: 'Registrar Message Received',
-        message: 'Ms. Elena Ramos replied to your Transcript inquiry on REG-2026-00125.',
-        timestamp: f2.timestamp,
-        exactTime: f2.exactTime,
-        dateStr: f2.dateStr,
-        read: false,
-        ticketNumber: 'REG-2026-00125',
-        type: 'chat_message',
-      },
-      {
-        id: 'notif-3',
-        title: 'Document Processing Update',
-        message: 'Ticket REG-2026-00125 has transitioned to "Processing & Security Watermark Printing".',
-        timestamp: f3.timestamp,
-        exactTime: f3.exactTime,
-        dateStr: f3.dateStr,
-        read: true,
-        ticketNumber: 'REG-2026-00125',
-        type: 'status_update',
-      },
-    ];
-  });
-
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tickets));
-    } catch (e) {
-      console.error('Error saving tickets', e);
-    }
-  }, [tickets]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(allNotifications));
-    } catch (e) {
-      console.error('Error saving notifications', e);
-    }
-  }, [allNotifications]);
+    }, 5000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [stateReady, currentUser]);
 
   // Keep selectedTicket & activeChatTicket in sync if tickets change
   useEffect(() => {
@@ -947,11 +779,9 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return found || null;
   };
 
-  const submitNewTicket = (data: Partial<Ticket>): Ticket => {
-    // Generate next ticket number format: REG-2026-001XX
-    const count = tickets.length + 125;
-    const padded = String(count).padStart(5, '0');
-    const ticketNumber = `REG-2026-${padded}`;
+  const submitNewTicket = async (data: Partial<Ticket>): Promise<Ticket> => {
+    const year = new Date().getFullYear();
+    const ticketNumber = `REG-${year}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     const now = new Date();
     const formattedNow = now.toLocaleDateString('en-US', {
@@ -962,38 +792,22 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       minute: '2-digit',
     });
 
-    // Calculate realistic estimated release date
-    let estDays = 3;
-    if (data.category === 'Certificates') estDays = 2;
-    if (data.category === 'Transcript of Records') estDays = 4;
-    if (data.category === 'Grades' || data.category === 'Enrollment') estDays = 2;
-    if (data.priority === 'Urgent') estDays = Math.max(1, estDays - 1);
-
-    const estDate = new Date();
-    estDate.setDate(estDate.getDate() + estDays);
-    const estDateString = `${estDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      weekday: 'long',
-    })}, 2:00 PM`;
-
-    // Determine default assigned office based on category
-    let defaultAssigned = 'Records Office';
-    let defaultLocation = 'Registrar Window 2, Administration Building';
-    if (data.category === 'Grades' || data.category === 'Enrollment') {
-      defaultAssigned = 'Mr. Ronald Tan';
-      defaultLocation = 'Registrar Window 1 - Admissions & Evaluation';
-    } else if (data.category === 'Certificates' || data.category === 'Clearance') {
-      defaultAssigned = 'Mrs. Grace Cruz';
-      defaultLocation = 'Registrar Window 4 - Certifications & Clearance';
-    } else if (data.category === 'ID concerns') {
-      defaultAssigned = 'Mr. Jonathan Lee';
-      defaultLocation = 'ID & Biometrics Center, Window 5';
-    } else if (data.category === 'Transcript of Records') {
-      defaultAssigned = 'Records Office';
-      defaultLocation = 'Registrar Window 3 - Transcript of Records';
+    const categoryConfig = requestCategories.find(
+      (category) => category.name === data.category || category.code === data.category
+    );
+    let estDateString = 'To be advised by the Registrar';
+    if (categoryConfig && categoryConfig.turnaroundDays > 0) {
+      const estimate = new Date();
+      estimate.setDate(estimate.getDate() + categoryConfig.turnaroundDays);
+      estDateString = estimate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
     }
+    const assignedStaff = users.find((user) => user.status === 'active' && user.role !== 'student' && user.role !== 'superadmin');
+    const defaultAssigned = assignedStaff?.name || systemSettings.officeName || 'Registrar Office';
+    const defaultLocation = systemSettings.schoolAddress || systemSettings.officeName || '';
 
     const newTicket: Ticket = {
       id: generateUniqueId('ticket'),
@@ -1001,13 +815,13 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       studentName: data.studentName || currentStudent.name,
       studentId: data.studentId || currentStudent.studentId,
       email: data.email || currentStudent.email,
-      phone: data.phone || '+63 917 555 0192',
+      phone: data.phone || '',
       degreeProgram: data.degreeProgram || currentStudent.degreeProgram,
       yearLevel: data.yearLevel || currentStudent.yearLevel,
       category: data.category || 'Other',
       documentType: data.documentType || 'None',
       copies: data.copies || 1,
-      purpose: data.purpose || 'Personal Records / University Verification',
+      purpose: data.purpose || '',
       deliveryOption: data.deliveryOption || 'Office Pick-up',
       subject: data.subject || `${data.category} Concern`,
       description: data.description || '',
@@ -1019,10 +833,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updatedAt: new Date().toISOString(),
       estimatedReleaseDate: estDateString,
       releaseLocation: defaultLocation,
-      claimingRequirements: [
-        'Original Valid Student ID',
-        `Registrar Claim Stub / Present this Ticket Number (${ticketNumber})`,
-      ],
+      claimingRequirements: categoryConfig?.requiredDocuments || [],
       messages: [],
       internalNotes: [],
       timelineHistory: [
@@ -1030,7 +841,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           stage: 'submitted',
           title: 'Request Submitted Online',
           timestamp: formattedNow,
-          notes: 'Ticket generated automatically via Student Helpdesk platform.',
+          notes: 'Request received by the Registrar.',
           actor: `${data.studentName || currentStudent.name} (Student)`,
           isPassed: true,
           isCurrent: true,
@@ -1039,67 +850,76 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           stage: 'processing',
           title: 'Processing',
           timestamp: 'Upcoming step',
-          notes: 'Records Management encoding grades & Evaluator checking for printing.',
+          notes: 'The Registrar will update this request when processing begins.',
           actor: defaultAssigned,
         },
         {
           stage: 'for_seal',
           title: 'For University Seal',
           timestamp: 'Upcoming step',
-          notes: 'Awaiting official university dry seal stamping.',
-          actor: 'University Seal Counter',
+          notes: 'The Registrar will update this request when this stage begins.',
+          actor: 'Registrar Office',
         },
         {
           stage: 'ready',
           title: 'Ready for Claiming',
           timestamp: 'Upcoming step',
-          notes: 'Document completed and queued for counter pickup.',
-          actor: 'Releasing Window',
+          notes: 'The Registrar will provide release instructions when the request is ready.',
+          actor: 'Registrar Office',
         },
         {
           stage: 'completed',
           title: 'Completed',
           timestamp: 'Upcoming step',
-          notes: 'Official transaction closure and counter releasing.',
-          actor: 'Releasing Window',
+          notes: 'The request will be closed after completion.',
+          actor: 'Registrar Office',
         },
       ],
     };
 
-    setTickets((prev) => [newTicket, ...prev]);
-
-    // Add real-time arrival notification
-    const arrival = formatRealtimeArrival();
-    const newNotif: AppNotification = {
-      id: generateUniqueId('notif'),
-      title: `Support Ticket Generated: ${ticketNumber}`,
-      message: `Official request for ${newTicket.studentName} (ID: ${newTicket.studentId}) filed by Registrar Evaluator. Ready for live tracking.`,
-      timestamp: arrival.timestamp,
-      exactTime: arrival.exactTime,
-      dateStr: arrival.dateStr,
-      read: false,
-      ticketNumber,
-      type: 'status_update',
-      audience: 'student',
-      recipientStudentId: newTicket.studentId,
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    await flushStateResource('notifications');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before the request could be submitted. Please sign in again.');
+    }
+    const { ticket: savedTicket } = await api<{ ticket: Ticket }>('/api/tickets', {
+      method: 'POST',
+      body: JSON.stringify({ ticket: newTicket }),
+    });
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before the request could be confirmed. Check your request list before retrying.');
+    }
 
     // Record audit log & system activity
     addAuditLog(
-      'TICKET_FILED_BY_REGISTRAR',
+      'TICKET_SUBMITTED',
       'Ticket',
-      `Walk-in request filed at counter window by Registrar for student ${newTicket.studentName} (ID: ${newTicket.studentId}, Ticket: #${ticketNumber}, Category: ${newTicket.category}).`,
+      `Request submitted by ${savedTicket.studentName} (ID: ${savedTicket.studentId}, Ticket: #${savedTicket.ticketNumber}, Category: ${savedTicket.category}).`,
       'info'
     );
     addSystemActivity(
-      `Support Ticket #${ticketNumber} generated by Evaluator for ${newTicket.studentName}`,
-      currentUser?.name || 'Registrar Evaluator',
+      `Request #${savedTicket.ticketNumber} received for ${savedTicket.studentName}`,
+      currentUser?.name || 'Registrar',
       'assignment',
-      ticketNumber
+      savedTicket.ticketNumber
     );
 
-    return newTicket;
+    try {
+      await refreshServerState(generation);
+    } catch (error) {
+      const refreshedTickets = [
+        savedTicket,
+        ...(latestResourcesRef.current.tickets as Ticket[]).filter(
+          (ticket) => ticket.id !== savedTicket.id && ticket.ticketNumber !== savedTicket.ticketNumber
+        ),
+      ];
+      stateBaselinesRef.current.tickets = serializeState(refreshedTickets);
+      setTickets(refreshedTickets);
+      setStartupError(`Request ${savedTicket.ticketNumber} was submitted, but the latest shared state could not be refreshed. ${error instanceof Error ? error.message : ''}`.trim());
+    }
+    return savedTicket;
   };
 
   const updateTicketStatus = (
@@ -1258,74 +1078,53 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const ticket = tickets.find((t) => t.id === ticketId);
     if (!ticket) return;
 
-    const actor = actorName || currentUser?.name || 'Registrar Staff';
-
-    // Find standard role holders in users
-    const receiverUser = users.find((u) => u.role === 'receiver') || { name: 'Records Office', role: 'receiver' as const };
-    const recordsUser = users.find((u) => u.role === 'records_management') || { name: 'Mr. Ronald Tan', role: 'records_management' as const };
-    const evaluatorUser = users.find((u) => u.role === 'evaluator') || { name: 'Ms. Elena Ramos', role: 'evaluator' as const };
+    const actor = actorName || currentUser?.name || 'Registrar';
 
     // Determine current role based on who is currently assigned
     const currentAssigneeUser = users.find(
-      (u) =>
-        u.name.toLowerCase() === ticket.assignedTo.toLowerCase() ||
-        ticket.assignedTo.toLowerCase().includes(u.name.toLowerCase())
+      (user) => user.name.toLowerCase() === ticket.assignedTo.toLowerCase()
     );
-    const currentRole =
-      currentAssigneeUser?.role ||
-      (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')
-        ? 'receiver'
-        : ticket.assignedTo.toLowerCase().includes('ronald')
-        ? 'records_management'
-        : ticket.assignedTo.toLowerCase().includes('elena') || ticket.assignedTo.toLowerCase().includes('lee')
-        ? 'evaluator'
-        : 'receiver');
+    const currentRole = currentAssigneeUser?.role || ticket.assignedRole || currentUser?.staffRole;
 
     let nextStaffName = targetStaffName;
     let nextStage: TicketStage = targetStage || ticket.stage;
     let autoNote = customNote;
 
     if (!nextStaffName) {
+      let nextRole: AccountRoleType | undefined;
       if (currentRole === 'receiver') {
-        // Receiver is done managing -> document goes to Records Management
-        nextStaffName = recordsUser.name;
+        nextRole = 'records_management';
         if (ticket.stage === 'submitted') {
           nextStage = 'processing';
         }
-        autoNote =
-          autoNote ||
-          `Intake completed by Receiver (${actor}). Document passed to Records Management (${nextStaffName}) for grade encoding and verification.`;
       } else if (currentRole === 'records_management') {
-        // Records Management is done managing -> returns to Receiver to change status to Ready for Claiming
-        nextStaffName = receiverUser.name;
+        nextRole = 'receiver';
         if (ticket.stage === 'processing') {
           nextStage = 'for_seal';
         }
-        autoNote =
-          autoNote ||
-          `Records management grade encoding and verification completed by ${actor}. Document returned to Receiver (${nextStaffName}) to set Ready for Claiming.`;
       } else if (currentRole === 'evaluator') {
-        // Evaluator is done managing -> returns to Receiver for Claiming
-        nextStaffName = receiverUser.name;
+        nextRole = 'receiver';
         if (ticket.stage === 'processing' || ticket.stage === 'for_seal') {
           nextStage = 'for_seal';
         }
-        autoNote =
-          autoNote ||
-          `Evaluation completed by Evaluator (${actor}). Document returned to Receiver (${nextStaffName}) to set Ready for Claiming.`;
-      } else {
-        nextStaffName = receiverUser.name;
-        autoNote = autoNote || `Document processed by ${actor}. Returned to Receiver (${nextStaffName}).`;
       }
+      const nextUser = nextRole && users.find((user) => user.role === nextRole && user.status === 'active');
+      if (!nextUser) {
+        console.error(`Cannot hand off request: no active ${nextRole?.replace('_', ' ') || 'staff'} account exists.`);
+        return;
+      }
+      nextStaffName = nextUser.name;
+      autoNote = autoNote || `Request handed off by ${actor} to ${nextUser.name}.`;
     }
 
     const matchedNextUser = users.find(
-      (u) =>
-        u.name === nextStaffName ||
-        (nextStaffName && nextStaffName.startsWith(u.name)) ||
-        (nextStaffName && u.name.toLowerCase() === nextStaffName.toLowerCase())
+      (user) => user.name.toLowerCase() === nextStaffName?.toLowerCase() && user.status === 'active'
     );
-    const finalStaffName = matchedNextUser ? matchedNextUser.name : (nextStaffName || ticket.assignedTo);
+    if (!matchedNextUser) {
+      console.error('Cannot hand off request: select an active staff account.');
+      return;
+    }
+    const finalStaffName = matchedNextUser.name;
     const finalRole = matchedNextUser?.role;
 
     const now = new Date();
@@ -1426,12 +1225,6 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (user.staffRole === 'receiver' || user.staffRole === 'records_management' || user.staffRole === 'evaluator') {
       return user.staffRole;
     }
-    const title = (user.adminRoleTitle || '').toLowerCase();
-    const name = (user.name || '').toLowerCase();
-    if (title.includes('receiver') || name.includes('records office') || name.includes('receiver') || title.includes('receiving')) return 'receiver';
-    if (title.includes('records management') || name.includes('ronald') || title.includes('records_management') || name.includes('records management')) return 'records_management';
-    if (title.includes('evaluator') || name.includes('elena') || name.includes('lee')) return 'evaluator';
-    if (user.staffRole) return user.staffRole as any;
     return 'registrar';
   };
 
@@ -1441,42 +1234,27 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isEvaluator = officerRole === 'evaluator';
   const canAccessApplicationForm = isReceiver || currentUser?.role === 'superadmin';
 
-  const deleteTicket = (ticketId: string, reason: string = 'Cancelled upon student request at office') => {
+  const deleteTicket = async (ticketId: string, reason: string = 'Removed by Registrar staff'): Promise<void> => {
     const target = tickets.find((t) => t.id === ticketId);
     if (!target) return;
 
-    const arrival = formatRealtimeArrival();
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    await flushStateResource('deletedRequestsHistory');
+    await flushStateResource('notifications');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before this request could be removed. Please try again.');
+    }
+    await api<{ ok: true }>(`/api/tickets/${encodeURIComponent(ticketId)}/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('The request was removed, but your session changed before the result could be refreshed. Reload the request history to verify it.');
+    }
     const currentOfficerRole = getOfficerRole(currentUser);
     const officerName = currentUser?.name || 'Registrar Staff';
-
-    const deletedRecord: DeletedRequestRecord = {
-      id: generateUniqueId('del-req'),
-      ticketId: target.id,
-      ticketNumber: target.ticketNumber,
-      studentName: target.studentName,
-      studentId: target.studentId,
-      email: target.email,
-      phone: target.phone,
-      degreeProgram: target.degreeProgram,
-      yearLevel: target.yearLevel,
-      category: target.category,
-      documentType: target.documentType,
-      subject: target.subject,
-      description: target.description,
-      priority: target.priority,
-      stageAtDeletion: target.stage,
-      statusAtDeletion: target.status,
-      deletedAt: new Date().toISOString(),
-      deletedAtFormatted: `${arrival.dateStr} • ${arrival.exactTime}`,
-      deletedByOfficerName: officerName,
-      deletedByOfficerRole: currentOfficerRole,
-      deletedByOfficerEmail: currentUser?.email,
-      reason,
-      ticketSnapshot: { ...target },
-    };
-
-    setDeletedRequestsHistory((prev) => [deletedRecord, ...prev]);
-    setTickets((prev) => prev.filter((t) => t.id !== ticketId));
 
     if (selectedTicket?.id === ticketId) {
       setSelectedTicket(null);
@@ -1498,46 +1276,56 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       target.ticketNumber
     );
 
-    setNotifications((prev) => [
-      {
-        id: generateUniqueId('notif'),
-        title: `Request Deleted: ${target.ticketNumber}`,
-        message: `The document request for ${target.studentName} has been deleted and archived in the private officer history log.`,
-        timestamp: arrival.timestamp,
-        exactTime: arrival.exactTime,
-        dateStr: arrival.dateStr,
-        read: false,
-        ticketNumber: target.ticketNumber,
-        type: 'status_update',
-        audience: 'officer',
-      },
-      ...prev,
-    ]);
+    try {
+      await refreshServerState(generation);
+    } catch (error) {
+      const remainingTickets = (latestResourcesRef.current.tickets as Ticket[]).filter((ticket) => ticket.id !== ticketId);
+      stateBaselinesRef.current.tickets = serializeState(remainingTickets);
+      setTickets(remainingTickets);
+      setStartupError(`Request ${target.ticketNumber} was removed, but the latest shared state could not be refreshed. ${error instanceof Error ? error.message : ''}`.trim());
+    }
   };
 
-  const cancelTicket = (ticketId: string, reason?: string) => {
-    deleteTicket(ticketId, reason);
+  const cancelTicket = async (ticketId: string, reason?: string): Promise<void> => {
+    await deleteTicket(ticketId, reason);
   };
 
-  const restoreDeletedTicket = (recordId: string) => {
+  const restoreDeletedTicket = async (recordId: string): Promise<Ticket> => {
     const record = deletedRequestsHistory.find((r) => r.id === recordId);
-    if (!record) return;
-
-    setTickets((prev) => {
-      if (prev.some((t) => t.id === record.ticketSnapshot.id || t.ticketNumber === record.ticketNumber)) {
-        return prev;
-      }
-      return [record.ticketSnapshot, ...prev];
-    });
-
-    setDeletedRequestsHistory((prev) => prev.filter((r) => r.id !== recordId));
+    if (!record) throw new Error('Deleted request was not found. Refresh the request history and try again.');
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    await flushStateResource('deletedRequestsHistory');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before this request could be restored. Please try again.');
+    }
+    const { ticket: restoredTicket } = await api<{ ticket: Ticket }>(
+      `/api/tickets/${encodeURIComponent(recordId)}/restore`,
+      { method: 'POST' }
+    );
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('The request was restored, but your session changed before the result could be refreshed. Reload the request history to verify it.');
+    }
 
     addAuditLog(
       'TICKET_RESTORED',
       'Ticket',
-      `Document request #${record.ticketNumber} was restored to active queue from Deleted Request History by ${currentUser?.name || 'Staff'}.`,
+      `Document request #${restoredTicket.ticketNumber} was restored to active queue from Deleted Request History by ${currentUser?.name || 'Staff'}.`,
       'info'
     );
+    try {
+      await refreshServerState(generation);
+    } catch (error) {
+      const restoredTickets = [
+        restoredTicket,
+        ...(latestResourcesRef.current.tickets as Ticket[]).filter((ticket) => ticket.id !== restoredTicket.id),
+      ];
+      stateBaselinesRef.current.tickets = serializeState(restoredTickets);
+      setTickets(restoredTickets);
+      setStartupError(`Request ${restoredTicket.ticketNumber} was restored, but the latest shared state could not be refreshed. ${error instanceof Error ? error.message : ''}`.trim());
+    }
+    return restoredTicket;
   };
 
   const recordCompletedRequest = (ticket: Ticket, notes?: string, customActor?: string) => {
@@ -1585,7 +1373,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myEmail = (currentUser.email || '').toLowerCase();
 
     // Super Administrator can review full system deletion records
-    if (currentUser.role === 'superadmin' || myRole === 'superadmin' || myName.includes('superadmin') || myName.includes('alexander')) {
+    if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
       return deletedRequestsHistory;
     }
 
@@ -1605,9 +1393,9 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       // Check role partition match
-      if (myRole === 'receiver' && (recRole === 'receiver' || recName.includes('records office') || recName.includes('receiver'))) return true;
-      if (myRole === 'records_management' && (recRole === 'records_management' || recRole.includes('records management') || recName.includes('ronald'))) return true;
-      if (myRole === 'evaluator' && (recRole === 'evaluator' || recName.includes('elena'))) return true;
+      if (myRole === 'receiver' && recRole === 'receiver') return true;
+      if (myRole === 'records_management' && recRole === 'records_management') return true;
+      if (myRole === 'evaluator' && recRole === 'evaluator') return true;
 
       return false;
     });
@@ -1620,7 +1408,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myEmail = (currentUser.email || '').toLowerCase();
 
     // Super Administrator can review full system completion records
-    if (currentUser.role === 'superadmin' || myRole === 'superadmin' || myName.includes('superadmin') || myName.includes('alexander')) {
+    if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
       return completedRequestsHistory;
     }
 
@@ -1640,9 +1428,9 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       // Check role partition match
-      if (myRole === 'receiver' && (recRole === 'receiver' || recName.includes('records office') || recName.includes('receiver'))) return true;
-      if (myRole === 'records_management' && (recRole === 'records_management' || recRole.includes('records management') || recName.includes('ronald'))) return true;
-      if (myRole === 'evaluator' && (recRole === 'evaluator' || recName.includes('elena'))) return true;
+      if (myRole === 'receiver' && recRole === 'receiver') return true;
+      if (myRole === 'records_management' && recRole === 'records_management') return true;
+      if (myRole === 'evaluator' && recRole === 'evaluator') return true;
 
       return false;
     });
@@ -1694,12 +1482,19 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const sendTicketMessage = (
+  const sendTicketMessage = async (
     ticketId: string,
     messageText: string,
     senderRole: 'student' | 'registrar',
     senderName: string
-  ) => {
+  ): Promise<Ticket> => {
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    await flushStateResource('notifications');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before the message could be sent. Please try again.');
+    }
     const arrival = formatRealtimeArrival();
     const newMsg: ChatMessage = {
       id: generateUniqueId('msg'),
@@ -1709,115 +1504,65 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       message: messageText,
       timestamp: `${arrival.dateStr} • ${arrival.exactTime}`,
     };
-
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, messages: [...t.messages, newMsg] } : t))
+    const { ticket: savedTicket } = await api<{ ticket: Ticket }>(
+      `/api/tickets/${encodeURIComponent(ticketId)}/messages`,
+      { method: 'POST', body: JSON.stringify({ message: newMsg }) }
     );
-
-    const target = tickets.find((t) => t.id === ticketId);
-    const ticketNo = target?.ticketNumber || 'Ticket';
-
-    if (senderRole === 'registrar') {
-      // Notification for Student
-      setNotifications((prev) => [
-        {
-          id: generateUniqueId('notif'),
-          title: `Registrar Admin Replied: #${ticketNo}`,
-          message: `${senderName} (Registrar) replied: "${messageText.slice(0, 90)}${messageText.length > 90 ? '...' : ''}"`,
-          timestamp: arrival.timestamp,
-          exactTime: arrival.exactTime,
-          dateStr: arrival.dateStr,
-          read: false,
-          ticketNumber: target?.ticketNumber,
-          type: 'chat_message',
-          audience: 'student',
-          recipientStudentId: target?.studentId,
-        },
-        ...prev,
-      ]);
-    } else {
-      // Notification for Registrar Admins so they don't have to check one by one
-      setNotifications((prev) => [
-        {
-          id: generateUniqueId('notif'),
-          title: `New Student Message on #${ticketNo}`,
-          message: `${senderName} sent a message regarding Ticket #${ticketNo}: "${messageText.slice(0, 90)}${messageText.length > 90 ? '...' : ''}"`,
-          timestamp: arrival.timestamp,
-          exactTime: arrival.exactTime,
-          dateStr: arrival.dateStr,
-          read: false,
-          ticketNumber: target?.ticketNumber,
-          type: 'chat_message',
-          audience: 'officer',
-        },
-        ...prev,
-      ]);
-
-      // Simulate registrar desk auto-reply
-      setTimeout(() => {
-        const autoArrival = formatRealtimeArrival();
-        const autoReply: ChatMessage = {
-          id: generateUniqueId('msg'),
-          ticketId,
-          senderRole: 'registrar',
-          senderName: 'Registrar Helpdesk Desk Officer',
-          message:
-            'Thank you for your message. An evaluator has received your note and will review your file without requiring an in-person visit.',
-          timestamp: `${autoArrival.dateStr} • ${autoArrival.exactTime}`,
-        };
-        setTickets((prev) =>
-          prev.map((t) => (t.id === ticketId ? { ...t, messages: [...t.messages, autoReply] } : t))
-        );
-
-        // Also notify student of registrar response
-        setNotifications((prev) => [
-          {
-            id: generateUniqueId('notif'),
-            title: `Registrar Auto-Reply: #${ticketNo}`,
-            message: `Registrar Desk Officer replied: "Thank you for your message. An evaluator has received your note..."`,
-            timestamp: autoArrival.timestamp,
-            exactTime: autoArrival.exactTime,
-            dateStr: autoArrival.dateStr,
-            read: false,
-            ticketNumber: target?.ticketNumber,
-            type: 'chat_message',
-            audience: 'student',
-            recipientStudentId: target?.studentId,
-          },
-          ...prev,
-        ]);
-      }, 1200);
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed after the message was sent. Refresh the request to verify it before retrying.');
     }
+    try {
+      await refreshServerState(generation);
+    } catch (error) {
+      const refreshedTickets = (latestResourcesRef.current.tickets as Ticket[]).map((ticket) =>
+        ticket.id === savedTicket.id ? savedTicket : ticket
+      );
+      stateBaselinesRef.current.tickets = serializeState(refreshedTickets);
+      setTickets(refreshedTickets);
+      setStartupError(`Message sent, but the latest shared state could not be refreshed. ${error instanceof Error ? error.message : ''}`.trim());
+    }
+    return savedTicket;
   };
 
   const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => markNotificationReadForAccount(prev, id, currentUser, tickets));
+    const updated = markNotificationReadForAccount(allNotifications, id, currentUser, tickets);
+    setNotifications(updated);
   };
 
   const notifications = getNotificationsForAccount(allNotifications, currentUser, tickets);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Stats computation - matching exact stats numbers or live dynamic count
-  // User prompt example: Pending Requests 24, Processing 15, Completed Today 18, Total Requests 157
-  const basePending = 21;
-  const baseProcessing = 12;
-  const baseCompletedToday = 17;
-  const baseTotal = 151;
-
-  const dynamicPending = tickets.filter((t) => t.status === 'pending').length;
-  const dynamicProcessing = tickets.filter((t) => t.status === 'processing').length;
-  const dynamicCompleted = tickets.filter((t) => t.status === 'completed').length;
+  const dynamicPending = tickets.filter((ticket) => ticket.status === 'pending').length;
+  const dynamicProcessing = tickets.filter((ticket) => ticket.status === 'processing').length;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const dynamicCompletedToday = tickets.filter((ticket) => {
+    const updated = Date.parse(ticket.updatedAt);
+    return ticket.status === 'completed' && Number.isFinite(updated) && updated >= startOfToday.getTime();
+  }).length;
   const urgentCount = tickets.filter(
     (t) => t.priority === 'Urgent' || t.priority === 'Deadline-sensitive'
   ).length;
+  const completedDurations = completedRequestsHistory
+    .map((record) => {
+      const created = Date.parse(record.ticketSnapshot?.createdAt || '');
+      const completed = Date.parse(record.completedAt || '');
+      return Number.isFinite(created) && Number.isFinite(completed) && completed >= created
+        ? (completed - created) / (1000 * 60 * 60 * 24)
+        : null;
+    })
+    .filter((duration): duration is number => duration !== null);
+  const avgTurnaroundDays = completedDurations.length
+    ? completedDurations.reduce((total, days) => total + days, 0) / completedDurations.length
+    : 0;
 
   const stats: HelpdeskStats = {
-    pendingRequests: basePending + dynamicPending,
-    processing: baseProcessing + dynamicProcessing,
-    completedToday: baseCompletedToday + dynamicCompleted,
-    totalRequests: baseTotal + tickets.length,
-    urgentTickets: urgentCount + 4,
-    avgTurnaroundDays: 2.4,
+    pendingRequests: dynamicPending,
+    processing: dynamicProcessing,
+    completedToday: dynamicCompletedToday,
+    totalRequests: tickets.length,
+    urgentTickets: urgentCount,
+    avgTurnaroundDays,
   };
 
   const addAuditLog = (
@@ -1826,6 +1571,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     details: string,
     severity: AuditLog['severity'] = 'info'
   ) => {
+    if (!currentUser || currentUser.role === 'student') return;
     const newLog: AuditLog = {
       id: generateUniqueId('log'),
       timestamp: new Date().toLocaleString('en-US', {
@@ -1837,12 +1583,12 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         second: '2-digit',
         hour12: false,
       }),
-      actorName: currentUser?.name || 'Dr. Alexander Reyes',
+      actorName: currentUser?.name || 'System',
       actorRole: currentUser?.role === 'superadmin' ? 'Super Administrator' : currentUser?.role === 'admin' ? 'Registrar Evaluator' : 'Student',
       action,
       category,
       details,
-      ipAddress: '10.0.4.12',
+      ipAddress: 'Unavailable',
       severity,
     };
     setAuditLogs((prev) => [newLog, ...prev]);
@@ -1854,6 +1600,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     actionType: SystemActivityItem['actionType'],
     ticketNumber?: string
   ) => {
+    if (!currentUser || currentUser.role === 'student') return;
     const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
     const newActivity: SystemActivityItem = {
       id: generateUniqueId('act'),
@@ -1872,142 +1619,55 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const createUser = (userData: Omit<UserAccount, 'id' | 'createdAt' | 'lastLogin'>) => {
-    const newId = generateUniqueId('usr');
-    const newUser: UserAccount = {
-      ...userData,
-      id: newId,
-      createdAt: new Date().toISOString().split('T')[0],
-      lastLogin: 'Never',
-    };
-    setUsers((prev) => [newUser, ...prev]);
-
-    // If this account email, studentId or name was in deletedAccounts blacklist, restore authorization
-    setDeletedAccounts((prev) => {
-      const next = prev.filter(
-        (d) =>
-          (newUser.email && d.email !== newUser.email.toLowerCase()) &&
-          (newUser.name && d.name !== newUser.name.toLowerCase()) &&
-          (!newUser.studentId || d.studentId !== newUser.studentId)
-      );
-      try {
-        localStorage.setItem(DELETED_ACCOUNTS_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
-      }
-      return next;
+  const createUser = async (userData: Omit<UserAccount, 'id' | 'createdAt' | 'lastLogin'>) => {
+    const { user } = await api<{ user: UserAccount }>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ user: userData }),
     });
-
-    // Automatically save user identity into studentRecords if role is student
-    if (newUser.role === 'student' && newUser.studentId) {
-      const exists = studentRecords.some((s) => s.studentId === newUser.studentId);
-      if (!exists) {
-        const newStudent: StudentProfile = {
-          id: generateUniqueId('stu'),
-          studentId: newUser.studentId,
-          name: newUser.name,
-          email: newUser.email,
-          phone: newUser.phoneNumber || '+63 917 555 0192',
-          degreeProgram: 'BS Computer Science',
-          yearLevel: '1st Year',
-          enrollmentStatus: 'Regular',
-          academicStanding: 'Good Standing',
-          unitsEnrolled: 18,
-          isArchived: false,
-          requestCount: 0,
-          joinedDate: new Date().toISOString().split('T')[0],
-          profilePicture: newUser.profilePicture,
-        };
-        setStudentRecords((prev) => [newStudent, ...prev]);
-      }
+    const safeUser = { ...user };
+    delete safeUser.password;
+    setUsers((prev) => [safeUser, ...prev.filter((account) => account.id !== safeUser.id)]);
+    if (safeUser.role === 'student') {
+      const state = await api<Record<string, unknown>>('/api/state');
+      applyServerSnapshot(state, accountGenerationRef.current);
     }
-
-    addAuditLog('USER_CREATED', 'Auth', `Created user account for ${newUser.name} with role ${newUser.role}.`, 'success');
-    addSystemActivity(`New ${newUser.role} account created for ${newUser.name}`, currentUser?.name || 'Super Admin', 'account_created');
+    addAuditLog('USER_CREATED', 'Auth', `Created user account for ${safeUser.name} with role ${safeUser.role}.`, 'success');
+    addSystemActivity(`New ${safeUser.role} account created for ${safeUser.name}`, currentUser?.name || 'Registrar', 'account_created');
   };
 
-  const updateUser = (id: string, updates: Partial<UserAccount>) => {
-    const user = users.find((u) => u.id === id);
-    if (user) {
-      addAuditLog('USER_UPDATED', 'Auth', `Updated account details for ${updates.name || user.name}.`, 'info');
-    }
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, ...updates } : u))
-    );
-  };
-
-  const deleteUser = (id: string) => {
-    const user = users.find((u) => u.id === id);
-    if (!user) return;
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-
-    // Add to deletedAccounts blacklist so this account can NEVER be opened again
-    const entry = {
-      id: user.id,
-      email: user.email?.toLowerCase(),
-      studentId: user.studentId,
-      name: user.name?.toLowerCase(),
-      deletedAt: new Date().toISOString(),
-    };
-    setDeletedAccounts((prev) => {
-      const next = [...prev, entry];
-      try {
-        localStorage.setItem(DELETED_ACCOUNTS_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
-      }
-      return next;
+  const updateUser = async (id: string, updates: Partial<UserAccount>) => {
+    const { user } = await api<{ user: UserAccount }>(`/api/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ updates }),
     });
-
-    addAuditLog('USER_DELETED', 'Auth', `Permanently deleted user account ${user.name} (${user.email}). Account is barred from further logins.`, 'warning');
-    addSystemActivity(`Account removed permanently: ${user.name}`, currentUser?.name || 'Super Admin', 'setting_updated');
-
-    // If currently logged in user is the deleted account, immediately kick out and log out!
-    if (
-      currentUser &&
-      ((user.email && currentUser.email?.toLowerCase() === user.email.toLowerCase()) ||
-       (user.studentId && currentUser.studentId === user.studentId) ||
-       currentUser.name.toLowerCase() === user.name.toLowerCase())
-    ) {
-      logout();
-    }
+    const safeUser = { ...user };
+    delete safeUser.password;
+    setUsers((prev) => prev.map((account) => account.id === id ? safeUser : account));
+    addAuditLog('USER_UPDATED', 'Auth', `Updated account details for ${safeUser.name}.`, 'info');
   };
 
-  const changeCurrentAccountPassword = (newPassword: string, oldPassword?: string) => {
-    if (!currentUser) {
-      return { success: false, error: 'No active session found.' };
+  const deleteUser = async (id: string) => {
+    const user = users.find((account) => account.id === id);
+    await api(`/api/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    setUsers((prev) => prev.filter((account) => account.id !== id));
+    if (user) addAuditLog('USER_DELETED', 'Auth', `Deleted account for ${user.name}.`, 'warning');
+    if (user && currentUser?.name.toLowerCase() === user.name.toLowerCase()) await logout();
+  };
+
+  const changeCurrentAccountPassword = async (newPassword: string, oldPassword?: string) => {
+    if (!currentUser) return { success: false, error: 'No active session found.' };
+    if (!oldPassword) return { success: false, error: 'Enter your current password.' };
+    if (newPassword.length < 8) return { success: false, error: 'New password must be at least 8 characters long.' };
+    try {
+      await api('/api/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      addAuditLog('PASSWORD_CHANGED', 'Auth', `Account password successfully updated for ${currentUser.name}.`, 'success');
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unable to update password.' };
     }
-    const trimmed = newPassword.trim();
-    if (trimmed.length < 4) {
-      return { success: false, error: 'New password must be at least 4 characters long.' };
-    }
-
-    setUsers((prev) =>
-      prev.map((u) => {
-        const isMatch =
-          (currentUser.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (currentUser.studentId && u.studentId === currentUser.studentId) ||
-          u.name.toLowerCase() === currentUser.name.toLowerCase();
-        if (isMatch) {
-          return { ...u, password: trimmed };
-        }
-        return u;
-      })
-    );
-
-    addAuditLog(
-      'PASSWORD_CHANGED',
-      'Auth',
-      `Account password successfully updated for ${currentUser.name} (${currentUser.role}).`,
-      'success'
-    );
-    addSystemActivity(
-      `Password successfully changed by ${currentUser.name}`,
-      currentUser.name,
-      'setting_updated'
-    );
-
-    return { success: true };
   };
 
   const updateCurrentProfilePicture = (pictureDataUrl: string) => {
@@ -2015,30 +1675,20 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setCurrentUser((prev) => (prev ? { ...prev, profilePicture: pictureDataUrl } : null));
 
-    try {
-      const updatedUser = { ...currentUser, profilePicture: pictureDataUrl };
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser));
-    } catch (e) {
-      console.error(e);
-    }
-
-    setUsers((prev) =>
-      prev.map((u) => {
-        const isMatch =
-          (currentUser.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (currentUser.studentId && u.studentId === currentUser.studentId) ||
-          u.name.toLowerCase() === currentUser.name.toLowerCase();
-        if (isMatch) {
-          return { ...u, profilePicture: pictureDataUrl };
-        }
-        return u;
+    const accountId = (currentUser as AuthenticatedUser & { id?: string }).id;
+    if (accountId) {
+      void api<{ user: UserAccount }>(`/api/users/${encodeURIComponent(accountId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ updates: { profilePicture: pictureDataUrl } }),
       })
-    );
-
-    if (currentUser.studentId) {
-      setStudentRecords((prev) =>
-        prev.map((s) => (s.studentId === currentUser.studentId ? { ...s, profilePicture: pictureDataUrl } : s))
-      );
+      .then(({ user }) => {
+        const safeUser = { ...user };
+        delete safeUser.password;
+        setUsers((prev) => prev.map((account) => account.id === safeUser.id ? safeUser : account));
+      })
+      .catch((error: Error) => console.error('Unable to save profile photo:', error.message));
+    } else {
+      console.error('Unable to save profile photo: authenticated account ID is unavailable.');
     }
 
     addAuditLog(
@@ -2049,37 +1699,21 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const toggleUserStatus = (id: string) => {
+  const toggleUserStatus = async (id: string) => {
     const user = users.find((u) => u.id === id);
-    if (user) {
-      const newStatus: AccountStatus = user.status === 'active' ? 'inactive' : 'active';
-      addAuditLog(
-        newStatus === 'active' ? 'USER_REACTIVATED' : 'USER_DEACTIVATED',
-        'Auth',
-        `Changed status of ${user.name} to ${newStatus}.`,
-        newStatus === 'active' ? 'success' : 'warning'
-      );
-      addSystemActivity(`User ${user.name} status updated to ${newStatus}`, currentUser?.name || 'Super Admin', 'setting_updated');
-    }
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === id) {
-          const newStatus: AccountStatus = u.status === 'active' ? 'inactive' : 'active';
-          return { ...u, status: newStatus };
-        }
-        return u;
-      })
-    );
+    if (!user) return;
+    const newStatus: AccountStatus = user.status === 'active' ? 'inactive' : 'active';
+    await updateUser(id, { status: newStatus });
+    addSystemActivity(`User ${user.name} status updated to ${newStatus}`, currentUser?.name || 'Registrar', 'setting_updated');
   };
 
-  const resetUserPassword = (id: string) => {
+  const resetUserPassword = async (id: string) => {
     const user = users.find((u) => u.id === id);
-    const tempPassword = `MSU#${Math.floor(1000 + Math.random() * 9000)}!`;
+    const { password } = await api<{ password: string }>(`/api/users/${encodeURIComponent(id)}/reset-password`, { method: 'POST' });
     if (user) {
       addAuditLog('PASSWORD_RESET', 'Auth', `Administrative password reset issued for user ${user.name}.`, 'warning');
-      addSystemActivity(`Password reset dispatched for ${user.name}`, currentUser?.name || 'Super Admin', 'setting_updated');
     }
-    return tempPassword;
+    return password;
   };
 
   const addStudentRecord = (
@@ -2406,25 +2040,24 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       auditLogs,
       systemActivities,
       announcements,
+      notifications: allNotifications,
+      deletedRequestsHistory,
+      completedRequestsHistory,
+      credentialNotice: 'Account passwords and sessions are not included and will not be changed by restore.',
     };
     addAuditLog('BACKUP_CREATED', 'Backup', 'System database backup snapshot exported by Super Administrator.', 'success');
     return JSON.stringify(backupData, null, 2);
   };
 
-  const restoreSystemBackup = (jsonContent: string): { success: boolean; error?: string } => {
+  const restoreSystemBackup = async (jsonContent: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const data = JSON.parse(jsonContent);
-      if (!data.users || !data.tickets) {
+      if (!Array.isArray(data.tickets)) {
         return { success: false, error: 'Invalid backup structure. Required entities are missing.' };
       }
-      if (Array.isArray(data.users)) setUsers(data.users);
-      if (Array.isArray(data.studentRecords)) setStudentRecords(data.studentRecords);
-      if (Array.isArray(data.roles)) setRoles(data.roles);
-      if (Array.isArray(data.tickets)) setTickets(data.tickets);
-      if (Array.isArray(data.requestCategories)) setRequestCategories(data.requestCategories);
-      if (data.systemSettings) setSystemSettings(data.systemSettings);
-      if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
-      if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
+      await Promise.all(STATE_RESOURCE_KEYS.map((key) => flushStateResource(key)));
+      await api('/api/state/restore-backup', { method: 'POST', body: JSON.stringify({ backup: data }) });
+      if (currentUser) await hydrateAccount(currentUser, accountGenerationRef.current);
 
       addAuditLog('BACKUP_RESTORED', 'Backup', 'System state successfully restored from snapshot.', 'warning');
       addSystemActivity('System database restored from external snapshot', currentUser?.name || 'Super Admin', 'setting_updated');
@@ -2434,36 +2067,18 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const resetDemoData = () => {
-    setTickets(INITIAL_TICKETS);
-    setUsers(INITIAL_USERS);
-    setStudentRecords(INITIAL_STUDENT_RECORDS);
-    setRoles(INITIAL_ROLES);
-    setAuditLogs(INITIAL_AUDIT_LOGS);
-    setSystemActivities(INITIAL_SYSTEM_ACTIVITIES);
-    setRequestCategories(INITIAL_REQUEST_CATEGORIES);
-    setSystemSettings(DEFAULT_SYSTEM_SETTINGS);
-    setAnnouncements(INITIAL_ANNOUNCEMENTS);
-    setDeletedRequestsHistory(INITIAL_DELETED_REQUESTS);
-    setCompletedRequestsHistory(INITIAL_COMPLETED_REQUESTS);
-
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
-    localStorage.removeItem(USERS_STORAGE_KEY);
-    localStorage.removeItem(STUDENTS_STORAGE_KEY);
-    localStorage.removeItem(ROLES_STORAGE_KEY);
-    localStorage.removeItem(AUDIT_STORAGE_KEY);
-    localStorage.removeItem(ACTIVITIES_STORAGE_KEY);
-    localStorage.removeItem(CATEGORIES_STORAGE_KEY);
-    localStorage.removeItem(SETTINGS_STORAGE_KEY);
-    localStorage.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
-    localStorage.removeItem(DELETED_REQUESTS_KEY);
-    localStorage.removeItem(COMPLETED_REQUESTS_KEY);
+  const archiveCompletedRequests = async (): Promise<number> => {
+    await Promise.all(STATE_RESOURCE_KEYS.map((key) => flushStateResource(key)));
+    const { count } = await api<{ count: number }>('/api/archive-completed', { method: 'POST', body: '{}' });
+    if (currentUser) await hydrateAccount(currentUser, accountGenerationRef.current);
+    return count;
   };
 
   return (
     <HelpdeskContext.Provider
       value={{
+        initializing,
+        startupError,
         isAuthenticated,
         currentUser,
         loginStudent,
@@ -2521,7 +2136,10 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateStudentRecord,
         archiveStudentRecord,
         restoreStudentRecord,
-        roles,
+        roles: roles.map(systemRole => ({
+          ...systemRole,
+          userCount: users.filter(user => user.role === systemRole.id.replace(/^role-/, '')).length,
+        })),
         createRole,
         updateRole,
         deleteRole,
@@ -2544,6 +2162,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         broadcastNotification,
         exportSystemBackup,
         restoreSystemBackup,
+        archiveCompletedRequests,
         staffList,
         faqs,
         announcements,
@@ -2551,7 +2170,6 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         notifications,
         markNotificationAsRead,
         unreadCount,
-        resetDemoData,
       }}
     >
       {children}

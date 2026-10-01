@@ -1,0 +1,1 @@
+- [Mobile delivery scope](mobile-delivery-scope.md) — keep Android and iOS compatibility in the existing responsive website, not a native-app migration.

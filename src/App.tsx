@@ -25,7 +25,7 @@ const MainContent: React.FC = () => {
   const { role, studentView, adminView, canAccessApplicationForm } = useHelpdesk();
 
   return (
-    <main className="min-h-[calc(100vh-140px)] pb-12">
+    <main className="flex-1 pb-8 sm:pb-12">
       {role === 'student' ? (
         <>
           {studentView === 'track' && <TrackTicketView />}
@@ -58,14 +58,14 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 flex flex-col justify-between selection:bg-emerald-200 selection:text-emerald-900">
+    <div className="min-h-[100dvh] bg-stone-50 text-stone-900 flex flex-col selection:bg-emerald-200 selection:text-emerald-900">
       <div>
         <Navbar />
         <MainContent />
       </div>
 
       {/* Institutional Footer */}
-      <footer className="bg-emerald-950 text-emerald-100 border-t border-emerald-900/60 pt-10 pb-8 text-xs">
+      <footer className="safe-area-bottom bg-emerald-950 text-emerald-100 border-t border-emerald-900/60 pt-8 sm:pt-10 pb-8 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-emerald-900">
             {/* Brand and Mission */}

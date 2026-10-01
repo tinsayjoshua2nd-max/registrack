@@ -77,11 +77,11 @@ export const TrackTicketView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">
+    <div className="max-w-5xl mx-auto py-5 sm:py-6 px-3 sm:px-4 space-y-5 sm:space-y-6">
       {/* Student Context Notice Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 to-stone-900 text-white p-5 rounded-2xl border border-emerald-800/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-emerald-900 to-stone-900 text-white p-4 sm:p-5 rounded-2xl border border-emerald-800/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
               STUDENT DOCUMENT TRACKING
             </span>
@@ -106,7 +106,7 @@ export const TrackTicketView: React.FC = () => {
 
       {/* Filed Tickets for Current Student (Auto-populated from Registrar Submissions) */}
       {studentTickets.length > 0 && (
-        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs space-y-3">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-heading font-bold text-sm text-stone-900 flex items-center gap-2">
               <Building className="w-4 h-4 text-emerald-800" />
@@ -147,7 +147,7 @@ export const TrackTicketView: React.FC = () => {
       )}
 
       {/* Header & Search Bar */}
-      <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
+       <div className="bg-white p-4 sm:p-6 rounded-2xl border border-stone-200 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -175,7 +175,7 @@ export const TrackTicketView: React.FC = () => {
             </div>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
+              className="min-h-11 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer shrink-0"
             >
               Search
             </button>
@@ -193,7 +193,7 @@ export const TrackTicketView: React.FC = () => {
                 setTrackingTicketNumber(t.ticketNumber);
                 setSelectedTicket(t);
               }}
-              className={`px-2.5 py-1 rounded-lg border text-xs transition-all cursor-pointer font-mono ${
+              className={`min-h-10 px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer font-mono ${
                 activeTicket?.id === t.id
                   ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
                   : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700'
@@ -208,7 +208,7 @@ export const TrackTicketView: React.FC = () => {
       {activeTicket ? (
         <div className="space-y-6">
           {/* Main Ticket Overview Card */}
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-xs p-6 space-y-6">
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-xs p-4 sm:p-6 space-y-5 sm:space-y-6">
             {/* Top Bar with Ticket # and Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
               <div className="flex items-center gap-3">

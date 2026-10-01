@@ -66,21 +66,21 @@ export const SuperAdminLayout: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-stone-100 flex flex-col font-sans">
+    <div className="min-h-[100dvh] bg-stone-100 flex flex-col font-sans">
       {/* Top Header */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <header className="safe-area-top bg-white border-b border-stone-200 sticky top-0 z-40 shadow-xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & Identity */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-stone-900 text-emerald-400 flex items-center justify-center font-bold text-base shadow-xs">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-stone-900 text-emerald-400 flex items-center justify-center font-bold text-base shadow-xs shrink-0">
               <School className="w-5 h-5 text-emerald-400" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-heading font-extrabold text-sm sm:text-base text-stone-900 leading-tight">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="font-heading font-extrabold text-sm sm:text-base text-stone-900 leading-tight truncate max-w-[40vw] sm:max-w-none">
                   {systemSettings.officeName || 'Office of the University Registrar'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-stone-900 text-emerald-400 border border-stone-700">
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-stone-900 text-emerald-400 border border-stone-700">
                   REGISTRAR
                 </span>
               </div>
@@ -99,7 +99,7 @@ export const SuperAdminLayout: React.FC = () => {
           )}
 
           {/* Right Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* Quick Badge */}
             <div className="hidden md:flex items-center gap-2 text-xs text-stone-600 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
               <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
@@ -111,7 +111,8 @@ export const SuperAdminLayout: React.FC = () => {
               <button
                 id="superadmin-notif-button"
                 onClick={() => setShowNotifs(!showNotifs)}
-                className="relative p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer border border-stone-200"
+                aria-label="Institutional notifications"
+                className="relative min-h-11 min-w-11 p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer border border-stone-200 flex items-center justify-center"
                 title="Super Admin Notifications & Real-Time Arrival"
               >
                 <Bell className="w-4 h-4" />
@@ -123,7 +124,7 @@ export const SuperAdminLayout: React.FC = () => {
               </button>
 
               {showNotifs && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-stone-200 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed left-3 right-3 top-16 mt-2 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:w-96 rounded-2xl bg-white border border-stone-200 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between pb-2 border-b border-stone-100">
                     <div className="flex items-center gap-2">
                       <span className="font-heading font-bold text-sm text-stone-900">
@@ -182,12 +183,12 @@ export const SuperAdminLayout: React.FC = () => {
             </div>
 
             {/* User Pill with Profile & Password access */}
-            <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-stone-200">
+              <div className="flex items-center gap-1.5 sm:gap-2.5 pl-2 sm:pl-3 border-l border-stone-200">
               <button
                 type="button"
                 onClick={() => setShowProfileModal(true)}
                 title="Click to view profile, update photo, or change password"
-                className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity cursor-pointer group"
+                  className="min-h-11 min-w-11 flex items-center justify-center md:justify-start gap-2 text-left hover:opacity-85 transition-opacity cursor-pointer group"
               >
                 <div className="w-8 h-8 rounded-full bg-stone-900 text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0 ring-1 ring-emerald-500/40 overflow-hidden relative shadow-xs">
                   {currentUser?.profilePicture ? (
@@ -221,7 +222,7 @@ export const SuperAdminLayout: React.FC = () => {
                 id="superadmin-logout-button"
                 onClick={logout}
                 title="Log out from Registrar console"
-                className="ml-1 sm:ml-2 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                className="ml-1 sm:ml-2 min-h-11 min-w-11 flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Log Out</span>
@@ -237,8 +238,8 @@ export const SuperAdminLayout: React.FC = () => {
         />
 
         {/* Horizontal Navigation Sub-Bar */}
-        <div className="bg-stone-50 border-t border-stone-200 px-4 sm:px-6">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-2">
+        <div className="bg-stone-50 border-t border-stone-200 px-3 sm:px-6">
+          <div className="mobile-nav-scroll max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-1.5 sm:py-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = superAdminView === item.id;
@@ -263,7 +264,7 @@ export const SuperAdminLayout: React.FC = () => {
       </header>
 
       {/* Main View Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-8">
         {superAdminView === 'dashboard' && <SuperAdminDashboard />}
         {superAdminView === 'users' && <UserManagementView />}
         {superAdminView === 'tickets' && <HelpdeskManagementView />}
@@ -277,7 +278,7 @@ export const SuperAdminLayout: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-stone-200 py-4 px-4 text-center text-xs text-stone-500">
+      <footer className="safe-area-bottom bg-white border-t border-stone-200 py-4 px-3 sm:px-4 text-center text-xs text-stone-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>© 2026 {systemSettings.officeName} • Office of the University Registrar</p>
           <p className="font-mono text-[11px] text-stone-400">

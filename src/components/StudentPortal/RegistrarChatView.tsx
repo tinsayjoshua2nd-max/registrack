@@ -73,14 +73,14 @@ export const RegistrarChatView: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden min-h-[580px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden min-h-[480px] lg:min-h-[580px]">
         {/* Left Column: Tickets Conversations List */}
         <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-stone-200 bg-stone-50/50 p-4 flex flex-col">
           <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
             Select Ticket Thread ({tickets.length})
           </h2>
 
-          <div className="space-y-2 overflow-y-auto max-h-[480px] flex-1">
+          <div className="space-y-2 overflow-y-auto max-h-[38dvh] lg:max-h-[480px] flex-1">
             {tickets.map((t) => {
               const isSelected = selectedTicket?.id === t.id;
               const lastMsg = t.messages[t.messages.length - 1];
@@ -150,7 +150,7 @@ export const RegistrarChatView: React.FC = () => {
               </div>
 
               {/* Message Thread */}
-              <div className="flex-1 overflow-y-auto py-4 space-y-3 min-h-[300px] max-h-[420px] pr-2">
+              <div className="flex-1 overflow-y-auto py-4 space-y-3 min-h-[220px] max-h-[45dvh] sm:max-h-[420px] pr-2">
                 {/* Official System Notice */}
                 <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 text-center text-xs text-stone-600 max-w-md mx-auto">
                   <p className="font-semibold text-stone-800">

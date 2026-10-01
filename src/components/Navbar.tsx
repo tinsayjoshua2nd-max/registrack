@@ -21,6 +21,8 @@ import {
   KeyRound,
   Camera,
   History,
+  HelpCircle,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -68,13 +70,13 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-stone-200 shadow-xs">
+    <header className="safe-area-top sticky top-0 z-50 bg-white border-b border-stone-200 shadow-xs">
       {/* Top Banner with Institutional Green Accent */}
-      <div className="bg-emerald-900 text-emerald-50 px-4 py-1.5 text-xs font-medium flex items-center justify-between">
+      <div className="bg-emerald-900 text-emerald-50 px-3 sm:px-4 py-1.5 text-[10px] sm:text-xs font-medium flex items-center justify-between">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Office of the University Registrar • Online Helpdesk & Document Tracking Center</span>
+            <span className="truncate">Office of the University Registrar • Online Helpdesk & Document Tracking Center</span>
           </div>
 
           <div className="flex items-center gap-4 text-emerald-200 text-xs">
@@ -92,18 +94,18 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* Main Navbar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4">
         {/* Brand Logo & Title */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-700 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-600/20">
-            <GraduationCap className="w-6 h-6" />
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-700 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-600/20 shrink-0">
+            <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-heading font-bold text-xl text-emerald-950 tracking-tight">
+              <span className="font-heading font-bold text-lg sm:text-xl text-emerald-950 tracking-tight">
                 RegisTrack
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm bg-emerald-100 text-emerald-800 border border-emerald-300">
+              <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-sm bg-emerald-100 text-emerald-800 border border-emerald-300">
                 OFFICIAL
               </span>
             </div>
@@ -147,16 +149,16 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Controls Right: Role Badge & Notifications & Profile & Logout */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
           {/* Active Portal Badge */}
           <div className="flex items-center">
             {role === 'student' ? (
-              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
-                <span>🎓</span>
+              <span aria-label="Student Portal" title="Student Portal" className="w-9 h-9 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center justify-center sm:justify-start gap-1.5 shadow-2xs">
+                <GraduationCap className="w-4 h-4" />
                 <span className="hidden sm:inline">Student Portal</span>
               </span>
             ) : (
-              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-900 text-emerald-100 border border-emerald-700 flex items-center gap-1.5 shadow-2xs">
+              <span aria-label="Registrar Admin" title="Registrar Admin" className="w-9 h-9 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold bg-emerald-900 text-emerald-100 border border-emerald-700 flex items-center justify-center sm:justify-start gap-1.5 shadow-2xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
                 <span className="hidden sm:inline">Registrar Admin</span>
               </span>
@@ -168,7 +170,8 @@ export const Navbar: React.FC = () => {
             <button
               id="notifications-button"
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-              className="relative p-2 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+              aria-label="Notifications"
+              className="relative min-h-11 min-w-11 p-2 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer flex items-center justify-center"
               title="Notifications & Arrival Updates"
             >
               <Bell className="w-5 h-5" />
@@ -180,7 +183,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             {showNotifDropdown && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-stone-200 shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="fixed left-3 right-3 top-28 mt-2 w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:w-96 rounded-2xl bg-white border border-stone-200 shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-stone-100">
                   <div className="flex items-center gap-2">
                     <span className="font-heading font-bold text-sm text-stone-900">
@@ -262,7 +265,7 @@ export const Navbar: React.FC = () => {
               type="button"
               onClick={() => setShowProfileModal(true)}
               title="Click to view profile, upload photo, or change password"
-              className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity cursor-pointer group"
+              className="min-h-11 min-w-11 flex items-center justify-center md:justify-start gap-2 text-left hover:opacity-85 transition-opacity cursor-pointer group"
             >
               <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 ring-1 ring-emerald-400 overflow-hidden relative shadow-xs">
                 {currentUser?.profilePicture ? (
@@ -301,7 +304,7 @@ export const Navbar: React.FC = () => {
               type="button"
               onClick={logout}
               title="Log out from session and return to login page"
-              className="ml-1 sm:ml-2 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+              className="ml-1 sm:ml-2 min-h-11 min-w-11 flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Log Out</span>
@@ -317,11 +320,11 @@ export const Navbar: React.FC = () => {
       />
 
       {/* Navigation Sub-Bar */}
-      <div className="bg-stone-50 border-t border-stone-200 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-2">
+      <div className="bg-stone-50 border-t border-stone-200 px-3 sm:px-6">
+        <div className="mobile-nav-scroll max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-1.5 sm:py-2">
           {role === 'student' ? (
             /* Student Features: Track Request by Ticket # and Registrar Chat */
-            <nav className="flex items-center gap-1 sm:gap-2">
+            <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
               <button
                 id="nav-student-track"
                 onClick={() => setStudentView('track')}
@@ -351,40 +354,43 @@ export const Navbar: React.FC = () => {
               <button
                 id="nav-student-announcements"
                 onClick={() => setStudentView('announcements')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   studentView === 'announcements'
                     ? 'bg-emerald-800 text-white'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
                 }`}
               >
-                📢 Announcements
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Announcements</span>
               </button>
 
               <button
                 id="nav-student-faq"
                 onClick={() => setStudentView('faq')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   studentView === 'faq'
                     ? 'bg-emerald-800 text-white'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
                 }`}
               >
-                ❓ FAQ / Helpdesk
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>FAQ / Helpdesk</span>
               </button>
             </nav>
           ) : (
             /* Registrar Admin Features: Application Form added */
-            <nav className="flex items-center gap-1 sm:gap-2">
+            <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
               <button
                 id="nav-admin-dashboard"
                 onClick={() => setAdminView('dashboard')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   adminView === 'dashboard'
                     ? 'bg-emerald-800 text-white shadow-xs'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
                 }`}
               >
-                📊 Admin Dashboard
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Admin Dashboard</span>
               </button>
 
               {/* Application Form: Restricted to Receiver / Receiving Officer only */}
@@ -399,20 +405,21 @@ export const Navbar: React.FC = () => {
                   }`}
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>➕ Application Form</span>
+                  <span>Application Form</span>
                 </button>
               )}
 
               <button
                 id="nav-admin-requests"
                 onClick={() => setAdminView('all-requests')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   adminView === 'all-requests'
                     ? 'bg-emerald-800 text-white'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
                 }`}
               >
-                🗂️ Request Management
+                <FileText className="w-3.5 h-3.5" />
+                <span>Request Management</span>
               </button>
 
               <button
@@ -426,19 +433,20 @@ export const Navbar: React.FC = () => {
                 title="View your private deleted and completed requests history"
               >
                 <History className={`w-3.5 h-3.5 ${adminView === 'request-history' ? 'text-emerald-400' : 'text-stone-500'}`} />
-                <span>📜 Request History</span>
+                <span>Request History</span>
               </button>
 
               <button
                 id="nav-admin-announcements"
                 onClick={() => setAdminView('announcements-manage')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                   adminView === 'announcements-manage'
                     ? 'bg-emerald-800 text-white'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
                 }`}
               >
-                📢 Office Advisories & Schedules
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Office Advisories &amp; Schedules</span>
               </button>
             </nav>
           )}

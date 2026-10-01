@@ -1,0 +1,6 @@
+{
+  "name": "RegisTrack - Registrar Helpdesk & Request Tracking",
+  "description": "An online registrar helpdesk and request tracking system with real-time status monitoring, document release estimations, ticket management, and registrar chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

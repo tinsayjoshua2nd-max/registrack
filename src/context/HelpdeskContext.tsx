@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { getNotificationsForAccount, markNotificationReadForAccount } from '../utils/studentNotifications';
+import { isActiveTicket, isPriorityActionTicket } from '../utils/ticketQueue';
 import {
   Announcement,
   AuthenticatedUser,
@@ -127,7 +128,7 @@ interface HelpdeskContextType {
     actorName?: string
   ) => void;
   assignTicketStaff: (ticketId: string, staffName: string) => void;
-  updateTicketPriority: (ticketId: string, priority: TicketPriority) => void;
+  updateTicketPriority: (ticketId: string, priority: TicketPriority) => Promise<void>;
   updateEstimatedDate: (ticketId: string, newDate: string) => void;
   addInternalNote: (ticketId: string, noteText: string, author?: string) => void;
   sendTicketMessage: (
@@ -507,7 +508,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       office: user.departmentOrOffice,
       email: user.email,
       activeTicketsCount: tickets.filter(
-        (ticket) => ticket.assignedTo === user.name && (ticket.status === 'pending' || ticket.status === 'processing')
+        (ticket) => ticket.assignedTo.trim().toLowerCase() === user.name.trim().toLowerCase() && isActiveTicket(ticket)
       ).length,
     }));
 
@@ -1456,10 +1457,19 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  const updateTicketPriority = (ticketId: string, priority: TicketPriority) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, priority, updatedAt: new Date().toISOString() } : t))
-    );
+  const updateTicketPriority = async (ticketId: string, priority: TicketPriority): Promise<void> => {
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before the priority could be saved.');
+    }
+    await api(`/api/tickets/${encodeURIComponent(ticketId)}/priority`, {
+      method: 'PATCH',
+      body: JSON.stringify({ priority }),
+    });
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) return;
+    await refreshServerState(generation);
   };
 
   const updateEstimatedDate = (ticketId: string, newDate: string) => {
@@ -1547,9 +1557,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updated = Date.parse(ticket.updatedAt);
     return ticket.status === 'completed' && Number.isFinite(updated) && updated >= startOfToday.getTime();
   }).length;
-  const urgentCount = tickets.filter(
-    (t) => t.priority === 'Urgent' || t.priority === 'Deadline-sensitive'
-  ).length;
+  const urgentCount = tickets.filter(isPriorityActionTicket).length;
   const completedDurations = completedRequestsHistory
     .map((record) => {
       const created = Date.parse(record.ticketSnapshot?.createdAt || '');

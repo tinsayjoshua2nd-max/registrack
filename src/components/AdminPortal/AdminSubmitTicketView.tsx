@@ -731,7 +731,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 >
                   <option value="Normal">Normal (Standard 2-3 Days)</option>
                   <option value="Urgent">Urgent (Expedited / 24-48 Hours)</option>
-                  <option value="Priority">Priority (Same-Day / Deadline Case)</option>
+                  <option value="Deadline-sensitive">Priority (Same-Day / Deadline Case)</option>
                 </select>
               </div>
 

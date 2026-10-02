@@ -2,6 +2,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from 'node:process';
 import type { NextFunction, Request, Response } from 'express';
 import { withTransaction, pool } from './database';
+import { normalizeTicketPriority } from '../src/utils/ticketQueue';
 import {
   createSessionToken,
   hashPassword,
@@ -1045,6 +1046,38 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
+  app.patch('/api/tickets/:id/priority', csrfGuard, requireAuth, async (req: RequestWithAuth, res, next) => {
+    try {
+      const auth = req.auth;
+      if (!auth) return fail(res, 401, 'Your session is no longer valid.');
+      if (auth.accountRole === 'student') return fail(res, 403, 'Students cannot change request priority.');
+      const priority = normalizeTicketPriority(req.body?.priority);
+      if (!priority) return fail(res, 400, 'Choose a valid request priority.');
+      const ticket = await withTransaction(async client => {
+        const value = await lockResource(client, 'tickets');
+        if (!Array.isArray(value) || !value.every(isObject)) {
+          throw new ApiError(500, 'Ticket records are unavailable.');
+        }
+        const existing = value.find(item => item.id === req.params.id);
+        if (!existing) throw new ApiError(404, 'This request is no longer available.');
+        if (!canAccessTicket(existing, auth)) {
+          throw new ApiError(403, 'You can only update tickets assigned to your account.');
+        }
+        if (existing.priority === priority) return existing;
+        const updated = { ...existing, priority, updatedAt: new Date().toISOString() };
+        await saveResource(client, 'tickets', value.map(item => item.id === existing.id ? updated : item));
+        return updated;
+      });
+      res.json({ ticket: scopeTicket(auth, ticket) });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        fail(res, error.statusCode, error.message);
+        return;
+      }
+      next(error);
+    }
+  });
+
   app.post('/api/tickets/:id/messages', csrfGuard, requireAuth, async (req: RequestWithAuth, res, next) => {
     try {
       const auth = req.auth;
@@ -1864,6 +1897,11 @@ async function mergeOfficerTickets(
     if (!canAccessTicket(previous, auth)) {
       throw new ApiError(403, 'You can only update tickets assigned to your account.');
     }
+    if (incoming.priority !== previous.priority) {
+      const priority = normalizeTicketPriority(incoming.priority);
+      if (!priority) throw new ApiError(400, 'Choose a valid request priority.');
+      incoming.priority = priority;
+    }
     await validateTicketAssignmentUpdate(client, previous, incoming);
     if (stableJson(previous.messages || []) !== stableJson(incoming.messages || [])) {
       throw new ApiError(403, 'Messages must be sent through POST /api/tickets/:id/messages.');
@@ -2006,10 +2044,8 @@ async function createCanonicalTicket(
   const now = nowDate.toISOString();
   const sequence = await nextTicketSequence(client);
   const ticketNumber = `REG-${nowDate.getFullYear()}-${String(sequence).padStart(5, '0')}`;
-  const requestedPriority = String(input.priority || 'Normal');
-  const priority = ['Normal', 'Urgent', 'Deadline-sensitive'].includes(requestedPriority)
-    ? requestedPriority
-    : 'Normal';
+  const priority = normalizeTicketPriority(input.priority ?? 'Normal');
+  if (!priority) throw new ApiError(400, 'Choose a valid request priority.');
   const email = isStudent
     ? auth.email
     : typeof input.email === 'string' ? input.email.trim().toLowerCase() : String(profile?.email || '');
@@ -2320,7 +2356,7 @@ function mergeOfficerNotifications(currentValue: unknown, submittedValue: unknow
   if (incomingById.has('')) throw new ApiError(400, 'Each notification must have a record ID.');
   const merged = current.map((notification) => {
     const incoming = incomingById.get(String(notification.id || ''));
-    if (!incoming) return notification;
+    if (!incoming || stableJson(notification) === stableJson(incoming)) return notification;
     const readBy = new Set([
       ...(Array.isArray(notification.readByStudentIds) ? notification.readByStudentIds.map(String) : []),
       ...(Array.isArray(incoming.readByStudentIds) ? incoming.readByStudentIds.map(String) : []),

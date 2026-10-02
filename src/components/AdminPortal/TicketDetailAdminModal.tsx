@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { normalizeTicketPriority } from '../../utils/ticketQueue';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketStage, TicketStatus, TicketPriority } from '../../types';
 import { StatusBadge } from '../Common/StatusBadge';
@@ -28,10 +29,11 @@ interface TicketDetailAdminModalProps {
 }
 
 export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
-  ticket,
+  ticket: initialTicket,
   onClose,
 }) => {
   const {
+    tickets,
     updateTicketStatus,
     passTicketToNextRole,
     updateTicketPriority,
@@ -43,6 +45,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     users,
     currentUser,
   } = useHelpdesk();
+  const freshTicket = tickets.find(item => item.id === initialTicket.id);
+  const ticket = freshTicket || initialTicket;
 
   const [activeTab, setActiveTab] = useState<'timeline' | 'notes' | 'chat'>('timeline');
   const [internalNoteInput, setInternalNoteInput] = useState('');
@@ -52,6 +56,30 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [staffError, setStaffError] = useState('');
+  const [prioritySaving, setPrioritySaving] = useState(false);
+  const [priorityError, setPriorityError] = useState('');
+
+  useEffect(() => {
+    if (!freshTicket) onClose();
+  }, [freshTicket, onClose]);
+  useEffect(() => {
+    setEstDateInput(freshTicket?.estimatedReleaseDate || '');
+  }, [freshTicket?.estimatedReleaseDate]);
+
+  // A handoff can remove the request from this officer's authorized state.
+  if (!freshTicket) return null;
+
+  const handlePriorityChange = async (priority: TicketPriority) => {
+    setPrioritySaving(true);
+    setPriorityError('');
+    try {
+      await updateTicketPriority(ticket.id, priority);
+    } catch (error) {
+      setPriorityError(error instanceof Error ? error.message : 'Unable to save the priority.');
+    } finally {
+      setPrioritySaving(false);
+    }
+  };
 
   const normalizedStage: TicketStage =
     ticket.stage === 'reviewed' ? 'processing' : ticket.stage;
@@ -388,18 +416,22 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
 
           {/* Priority Urgency */}
           <div>
-            <label className="block text-stone-500 font-semibold mb-1">
+            <label htmlFor="triage-ticket-priority" className="block text-stone-500 font-semibold mb-1">
               Priority Urgency:
             </label>
             <select
-              value={ticket.priority}
-              onChange={(e) => updateTicketPriority(ticket.id, e.target.value as TicketPriority)}
+              id="triage-ticket-priority"
+              value={normalizeTicketPriority(ticket.priority) || ''}
+              disabled={prioritySaving}
+              onChange={(e) => void handlePriorityChange(e.target.value as TicketPriority)}
               className="w-full px-2.5 py-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:border-emerald-600"
             >
               <option value="Normal">Normal</option>
               <option value="Urgent">Urgent</option>
               <option value="Deadline-sensitive">Deadline-sensitive</option>
             </select>
+            {prioritySaving && <p className="text-xs text-stone-500 mt-1">Saving priority…</p>}
+            {priorityError && <p role="alert" className="text-xs text-rose-700 mt-1">{priorityError}</p>}
           </div>
 
           {/* Status Overview */}

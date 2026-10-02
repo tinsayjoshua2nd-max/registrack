@@ -95,6 +95,7 @@ try {
   await page.locator('select').filter({ has: page.locator('option[value="TOR"]') }).selectOption(category.name);
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Select staff member' }) }).selectOption(staff.name);
   await page.getByPlaceholder('Enter the student’s intended purpose').fill('Temporary tracking verification');
+  await page.locator('select').filter({ has: page.locator('option[value="Deadline-sensitive"]') }).selectOption('Deadline-sensitive');
   await page.getByPlaceholder('Add any specific evaluator findings, receipt numbers, or special instructions...').fill('Development-only verification');
   const recordFixture = (request: any) => {
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/tickets') {
@@ -111,6 +112,7 @@ try {
   page.off('request', recordFixture);
   assert.equal(createdRequest.status(), 201);
   const generatedTicket = (await createdRequest.json()).ticket;
+  assert.equal(generatedTicket.priority, 'Deadline-sensitive');
   trackingTicketNumber = generatedTicket.ticketNumber;
   assert(generatedTicket.subject.endsWith(' Request'));
   await page.getByText('Support Ticket Generated Successfully!', { exact: true }).waitFor();

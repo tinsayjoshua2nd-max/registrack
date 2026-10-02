@@ -4,6 +4,7 @@ import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { Ticket } from '../../types';
 import { TicketDetailAdminModal } from './TicketDetailAdminModal';
+import { getPriorityActionQueue, getStaffVisibleTickets } from '../../utils/ticketQueue';
 import {
   Clock,
   Loader2,
@@ -40,17 +41,8 @@ export const AdminDashboard: React.FC = () => {
   const myDeleted = getMyDeletedRequests();
   const myCompleted = getMyCompletedRequests();
 
-  const dashboardTickets = currentUser?.staffRole === 'receiver'
-    ? tickets
-    : tickets.filter((ticket) => {
-        if (!currentUser?.name) return false;
-        const assignedName = ticket.assignedTo.trim().toLowerCase();
-        const staffName = currentUser.name.trim().toLowerCase();
-        return assignedName === staffName || assignedName.startsWith(`${staffName} (`);
-      });
-  const urgentTickets = dashboardTickets.filter(
-    (t) => t.priority === 'Urgent' || t.priority === 'Deadline-sensitive'
-  );
+  const dashboardTickets = getStaffVisibleTickets(tickets, currentUser);
+  const urgentTickets = getPriorityActionQueue(dashboardTickets);
   const pendingCount = dashboardTickets.filter((ticket) => ticket.status === 'pending').length;
   const processingCount = dashboardTickets.filter((ticket) => ticket.status === 'processing').length;
   const completedTodayCount = dashboardTickets.filter((ticket) => {
@@ -243,7 +235,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Two Column Layout: Urgent Triage Queue + Staff Directory */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Urgent Queue & Recent Submissions */}
-        <div className="lg:col-span-8 space-y-4">
+        <section aria-label="Urgent & Priority Action Queue" className="lg:col-span-8 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -251,15 +243,20 @@ export const AdminDashboard: React.FC = () => {
                 Urgent & Priority Action Queue
               </h2>
             </div>
-            <span className="text-xs font-semibold text-stone-400">
+            <span data-testid="priority-queue-count" className="text-xs font-semibold text-stone-400">
               {urgentTickets.length} Priority Tickets
             </span>
           </div>
+          <p className="text-xs text-stone-500">
+            {currentUser?.staffRole === 'receiver' ? 'All active priority requests.' : 'Active priority requests assigned to you.'}
+            {' '}Priority cases first, then urgent cases; earliest release date and oldest request first.
+          </p>
 
           <div className="space-y-3">
             {urgentTickets.map((ticket) => (
               <div
                 key={ticket.id}
+                data-ticket-id={ticket.id}
                 className="bg-white p-4 rounded-2xl border border-stone-200 hover:border-emerald-300 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="space-y-1">
@@ -278,7 +275,7 @@ export const AdminDashboard: React.FC = () => {
                     <span>
                       Assigned: <strong className="text-stone-700">{ticket.assignedTo}</strong>
                     </span>
-                    <span>• Est. Release: {ticket.estimatedReleaseDate}</span>
+                    <span>• Est. Release: {ticket.estimatedReleaseDate || 'Not yet scheduled'}</span>
                   </div>
                 </div>
 
@@ -294,11 +291,13 @@ export const AdminDashboard: React.FC = () => {
             ))}
             {urgentTickets.length === 0 && (
               <p className="p-6 rounded-2xl border border-stone-200 bg-white text-center text-xs text-stone-500">
-                No urgent or deadline-sensitive tickets in your assigned queue.
+                {currentUser?.staffRole === 'receiver'
+                  ? 'No active urgent or priority requests.'
+                  : 'No active urgent or priority requests assigned to you.'}
               </p>
             )}
           </div>
-        </div>
+        </section>
 
         {/* Right Column: Staff Assignment & Department Workload */}
         <div className="lg:col-span-4 space-y-4">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
+import { getStaffVisibleTickets, normalizeTicketPriority } from '../../utils/ticketQueue';
 import { TicketCategory, TicketStatus, TicketPriority, Ticket } from '../../types';
 import { TicketDetailAdminModal } from './TicketDetailAdminModal';
 import {
@@ -69,20 +70,10 @@ export const TicketManagementTable: React.FC = () => {
     'Other',
   ];
 
-  const filteredTickets = tickets.filter((t) => {
-    // Access control: non-receiver staff can only see tickets assigned to their account.
-    if (!isUnrestrictedStaff && currentUser?.name) {
-      const currentName = currentUser.name.trim().toLowerCase();
-      const assigned = t.assignedTo.trim().toLowerCase();
-      const isAssigned = assigned === currentName || assigned.startsWith(`${currentName} (`);
-      if (!isAssigned) return false;
-    } else if (!isUnrestrictedStaff) {
-      return false;
-    }
-
+  const filteredTickets = getStaffVisibleTickets(tickets, currentUser).filter((t) => {
     const matchesCategory = categoryFilter === 'All' || t.category === categoryFilter;
     const matchesStatus = statusFilter === 'All' || t.status === statusFilter;
-    const matchesPriority = priorityFilter === 'All' || t.priority === priorityFilter;
+    const matchesPriority = priorityFilter === 'All' || normalizeTicketPriority(t.priority) === priorityFilter;
     const matchesSearch =
       !search ||
       t.ticketNumber.toLowerCase().includes(search.toLowerCase()) ||

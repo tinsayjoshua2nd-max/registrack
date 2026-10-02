@@ -14,3 +14,9 @@ After handing over a clean start, assume development records are real. Verificat
 **Why:** Real student records were entered between the clean-start handover and the next login change. Baseline restores can overwrite concurrent user edits, and account deletion alone does not clean up all fixture data.
 
 **How to apply:** Preserve existing records during follow-up checks and avoid printing personal data in assertion failures. Use clean-start-only verification only when a fresh reset is explicitly authorized.
+
+For focused staff triage actions, prefer authorized, transactional updates to one request and then refresh from the server, rather than saving an optimistic whole-queue replacement.
+
+**Why:** Different officers share a versioned ticket resource. Independent actions should not overwrite another officer's changes or leave an open dialog showing an old request snapshot.
+
+**How to apply:** Keep authorization tied to the current assignment, report save failures, refresh canonical state after acknowledgement, and close dialogs when a handoff removes an officer's access.

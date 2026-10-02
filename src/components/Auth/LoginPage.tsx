@@ -103,14 +103,6 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4" aria-busy={submitting}>
-              <div id="login-instructions" className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs text-emerald-900 flex items-start gap-2.5">
-                <User className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">One login for every account</p>
-                  <p className="text-emerald-800 text-[11px] mt-1"><strong>Students:</strong> Username and your Student ID or account password.</p>
-                  <p className="text-emerald-800 text-[11px] mt-0.5"><strong>Staff Officers and Registrar:</strong> Username or email and password.</p>
-                </div>
-              </div>
               {error && (
                 <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" /><span>{error}</span>
@@ -123,7 +115,7 @@ export const LoginPage: React.FC = () => {
                 <div className="relative">
                   <input
                     id="login-identifier-input" type="text" required autoComplete="username"
-                    autoCapitalize="none" spellCheck={false} aria-describedby="login-instructions"
+                    autoCapitalize="none" spellCheck={false}
                     placeholder="Enter your username or email"
                     value={identifier} onChange={event => setIdentifier(event.target.value)} disabled={submitting}
                     className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-stone-300 bg-stone-50/50 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all outline-none disabled:opacity-60"

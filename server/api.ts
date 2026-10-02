@@ -1030,6 +1030,9 @@ export function registerApi(app: import('express').Express): void {
     try {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
+      if (auth.accountRole === 'student') {
+        return fail(res, 403, 'Student accounts can track requests but cannot submit new requests.');
+      }
       if (!isObject(req.body?.ticket)) return fail(res, 400, 'A ticket object is required.');
       const result = await withTransaction((client) => createCanonicalTicket(client, req.body.ticket, auth));
       res.status(result.created ? 201 : 200).json({ ticket: scopeTicket(auth, result.ticket) });

@@ -38,7 +38,6 @@ import {
 } from '../data/superAdminData';
 
 export type StudentNavView =
-  | 'submit'
   | 'track'
   | 'chat'
   | 'announcements'
@@ -785,6 +784,9 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const submitNewTicket = async (data: Partial<Ticket>): Promise<Ticket> => {
+    if (currentUser?.role === 'student') {
+      throw new Error('Student accounts can track requests but cannot submit new requests.');
+    }
     const year = new Date().getFullYear();
     const ticketNumber = `REG-${year}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 

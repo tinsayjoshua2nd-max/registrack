@@ -40,6 +40,8 @@ const staffPassword = randomUUID();
 const studentPassword = randomUUID();
 const suffix = randomUUID().slice(0, 8);
 const studentId = String(randomInt(90_000_000, 99_000_000));
+const trackingFixtureId = `tracking-verification-${suffix}`;
+let trackingTicketNumber = '';
 
 async function provision(role: string, password: string, studentId?: string) {
   const response = await api.post('/api/users', { data: { user: {
@@ -64,20 +66,50 @@ async function verifyPortal(identifier: string, password: string, role: string, 
   await page.locator(marker).waitFor({ timeout: 15000 });
   const session = await (await page.request.get('/api/session')).json();
   assert.equal(session.user.role, role);
+  if (role === 'student') {
+    assert.equal(await page.locator('#nav-student-submit').count(), 0);
+    assert.equal(await page.getByText('Submit a Request', { exact: true }).count(), 0);
+    assert.equal(await page.locator('#submit-ticket-button').count(), 0);
+    await page.getByText(trackingTicketNumber, { exact: true }).first().waitFor();
+    const rejected = await page.request.post('/api/tickets', { data: { ticket: {
+      id: `blocked-${randomUUID()}`, subject: 'Student submission must be blocked',
+      description: 'Development authorization verification', category: 'Enrollment',
+    } } });
+    assert.equal(rejected.status(), 403);
+  }
 }
 
 try {
   const staff = await provision('receiver', staffPassword);
   const student = await provision('student', studentPassword, studentId);
+  const category = before.requestCategories.find((item: any) => item.active === true);
+  assert(category, 'An active category is required for tracking verification.');
+  await login(staff.name, staffPassword);
+  const createdRequest = await api.post('/api/tickets', { data: { ticket: {
+    id: trackingFixtureId, studentId, studentName: student.name, email: student.email,
+    subject: 'Temporary tracking verification', description: 'Development-only verification',
+    category: category.name, assignedTo: staff.name,
+  } } });
+  assert.equal(createdRequest.status(), 201);
+  trackingTicketNumber = (await createdRequest.json()).ticket.ticketNumber;
+  await login(registrar.name, registrarPassword);
 
   await verifyPortal(registrar.name, registrarPassword, 'superadmin', '#superadmin-logout-button');
   await verifyPortal(` ${registrar.email.toUpperCase()} `, registrarPassword, 'superadmin', '#superadmin-logout-button');
   await verifyPortal(staff.name, staffPassword, 'admin', '#nav-admin-dashboard');
+  assert.equal(await page.locator('#nav-admin-submit-ticket').count(), 1);
   await verifyPortal(` ${staff.email.toUpperCase()} `, staffPassword, 'admin', '#nav-admin-dashboard');
   await verifyPortal(` ${student.name.toUpperCase()} `, studentPassword, 'student', '#nav-student-track');
   await verifyPortal(student.name, studentId, 'student', '#nav-student-track');
   await page.reload();
   await page.locator('#nav-student-track').waitFor();
+  await page.locator('#nav-student-faq').click();
+  assert.equal(await page.getByText('Submit Request for this Topic', { exact: true }).count(), 0);
+  await page.locator('#nav-student-track').click();
+  await page.getByRole('button').filter({ hasText: trackingTicketNumber }).first().click();
+  await page.getByRole('heading', { name: 'Live Request Status Portal', exact: true }).waitFor();
+  await page.screenshot({ path: '/tmp/registrack-student-tracking.png', fullPage: true });
+  console.log('PASS: staff can create requests; students can see and select them for tracking, have no submission controls, and direct student submissions are forbidden');
   console.log('PASS: one form routes staff/Registrar username and email, and student username with either Student ID or password; sessions survive reload');
 
   await login(student.name, studentId);
@@ -134,6 +166,22 @@ try {
 } finally {
   await browser.close();
   await login(registrar.name, registrarPassword);
+  // Remove only this test's request and its associated notification.
+  await pool.query(
+    `WITH fixture_numbers AS (
+       SELECT entry->>'ticketNumber' AS number FROM registrack_data,
+         jsonb_array_elements(payload) entry
+       WHERE key = 'tickets' AND entry->>'id' = $1
+     )
+     UPDATE registrack_data SET payload = COALESCE((
+       SELECT jsonb_agg(entry) FROM jsonb_array_elements(payload) entry
+       WHERE CASE WHEN key = 'tickets' THEN entry->>'id' IS DISTINCT FROM $1
+         ELSE entry->>'ticketNumber' IS NULL OR entry->>'ticketNumber' NOT IN
+           (SELECT number FROM fixture_numbers) END
+     ), '[]'::jsonb), version = version + 1
+     WHERE key IN ('tickets', 'notifications')`,
+    [trackingFixtureId],
+  );
   for (const id of createdIds.reverse()) {
     assert.equal((await api.delete(`/api/users/${id}`)).status(), 200);
   }

@@ -3,7 +3,6 @@ import { HelpdeskProvider, useHelpdesk } from './context/HelpdeskContext';
 import { LoginPage } from './components/Auth/LoginPage';
 import { Navbar } from './components/Navbar';
 import { TrackTicketView } from './components/StudentPortal/TrackTicketView';
-import { SubmitTicketView } from './components/StudentPortal/SubmitTicketView';
 import { RegistrarChatView } from './components/StudentPortal/RegistrarChatView';
 import { FaqKnowledgeBase } from './components/StudentPortal/FaqKnowledgeBase';
 import { AnnouncementsView } from './components/StudentPortal/AnnouncementsView';
@@ -29,7 +28,6 @@ const MainContent: React.FC = () => {
     <main className="flex-1 pb-8 sm:pb-12">
       {role === 'student' ? (
         <>
-          {studentView === 'submit' && <SubmitTicketView />}
           {studentView === 'track' && <TrackTicketView />}
           {studentView === 'chat' && <RegistrarChatView />}
           {studentView === 'announcements' && <AnnouncementsView />}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
-import { FAQItem, TicketCategory } from '../../types';
+import { FAQItem } from '../../types';
 import {
   HelpCircle,
   Search,
@@ -30,10 +30,6 @@ export const FaqKnowledgeBase: React.FC = () => {
       item.answer.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-
-  const handleStartRequest = (cat?: TicketCategory) => {
-    setStudentView('chat');
-  };
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">
@@ -179,10 +175,10 @@ export const FaqKnowledgeBase: React.FC = () => {
                   <div className="pt-2 flex items-center justify-between">
                     <span className="text-xs text-stone-400">Still have questions? Use Registrar Chat.</span>
                     <button
-                      onClick={() => handleStartRequest(faq.relatedCategory)}
+                      onClick={() => setStudentView('chat')}
                       className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
-                      <span>Submit Request for this Topic</span>
+                      <span>Open Registrar Chat</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>

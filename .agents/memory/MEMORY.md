@@ -2,3 +2,4 @@
 - [Student notification scope](student-notification-scope.md) — student-only notification changes must preserve officer feeds and independent read status.
 - [Persisted state boundaries](persisted-state-boundaries.md) — canonical acknowledgements, role-aware dirty saves, and real UI tests prevent invalid confirmations and self-conflicts.
 - [Unified login policy](unified-login-policy.md) — students use username plus Student ID or password; staff/Registrar use username or email plus password, without role tabs.
+- [Student request permissions](student-request-permissions.md) — students track existing requests; request creation belongs to staff, not student accounts.

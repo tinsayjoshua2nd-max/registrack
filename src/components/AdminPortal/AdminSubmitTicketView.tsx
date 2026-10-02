@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
-  Printer,
   ArrowRight,
   Sparkles,
   ShieldCheck,
@@ -385,14 +384,6 @@ export const AdminSubmitTicketView: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-stone-200">
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-4 h-4 text-emerald-400" />
-                  <span>Print Counter Claim Slip</span>
-                </button>
-
               </div>
 
               <div className="flex items-center gap-2">

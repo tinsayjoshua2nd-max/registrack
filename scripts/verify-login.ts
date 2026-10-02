@@ -114,6 +114,7 @@ try {
   trackingTicketNumber = generatedTicket.ticketNumber;
   assert(generatedTicket.subject.endsWith(' Request'));
   await page.getByText('Support Ticket Generated Successfully!', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Print Counter Claim Slip', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Test Track in Student Account', exact: true }).count(), 0);
   assert.equal((await (await page.request.get('/api/session')).json()).user.role, 'admin');
   await page.screenshot({ path: '/tmp/registrack-staff-ticket-confirmation.png', fullPage: true });

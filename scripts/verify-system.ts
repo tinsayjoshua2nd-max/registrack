@@ -47,7 +47,7 @@ async function createAccount(role: string, studentId?: string) {
   createdIds.push(user.id);
   assert(!JSON.stringify(user).match(/password/i));
   const client = new Client();
-  await client.login(role === 'student' ? 'student' : 'admin', studentId || user.name, initialPassword);
+  await client.login(role === 'student' ? 'student' : 'admin', user.name, initialPassword);
   return { user, client, initialPassword };
 }
 
@@ -161,7 +161,7 @@ try {
   const newPassword = randomUUID();
   await a.client.request('/api/change-password', 'POST', { oldPassword: a.initialPassword, newPassword });
   await a.client.request('/api/logout', 'POST', {});
-  await a.client.login('student', a.user.studentId, newPassword);
+  await a.client.login('student', a.user.name, newPassword);
   await registrar.request(`/api/users/${a.user.id}`, 'PUT', { updates: { status: 'suspended' } });
   await a.client.request('/api/state', 'GET', undefined, 401);
   console.log('PASS: password changes and disabled-account session revocation');

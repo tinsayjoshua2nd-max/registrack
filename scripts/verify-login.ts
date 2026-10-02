@@ -74,25 +74,41 @@ try {
   await verifyPortal(` ${registrar.email.toUpperCase()} `, registrarPassword, 'superadmin', '#superadmin-logout-button');
   await verifyPortal(staff.name, staffPassword, 'admin', '#nav-admin-dashboard');
   await verifyPortal(` ${staff.email.toUpperCase()} `, staffPassword, 'admin', '#nav-admin-dashboard');
-  await verifyPortal(studentId, studentPassword, 'student', '#nav-student-track');
+  await verifyPortal(` ${student.name.toUpperCase()} `, studentPassword, 'student', '#nav-student-track');
+  await verifyPortal(student.name, studentId, 'student', '#nav-student-track');
   await page.reload();
   await page.locator('#nav-student-track').waitFor();
-  console.log('PASS: one form routes Registrar/staff username and email, and Student ID to the correct portals; sessions survive reload');
+  console.log('PASS: one form routes staff/Registrar username and email, and student username with either Student ID or password; sessions survive reload');
 
+  await login(student.name, studentId);
+  const newStudentPassword = randomUUID();
+  assert.equal((await api.post('/api/change-password', { data: {
+    oldPassword: studentId, newPassword: newStudentPassword,
+  } })).status(), 200);
   await login(student.name, studentPassword, 401);
-  await login(studentId, studentPassword);
-  await login(student.email, studentPassword, 401);
+  await login(student.name, newStudentPassword);
+  await verifyPortal(student.name, newStudentPassword, 'student', '#nav-student-track');
+  await login(studentId, newStudentPassword, 401);
+  await login(student.name, studentId);
+  await login(student.email, newStudentPassword, 401);
   await login(registrar.email, registrarPassword);
   await login(staff.email, randomUUID(), 401);
+  await login(registrar.name, registrarPassword);
+  await login(staff.email, studentId, 401);
   await login(registrar.name, registrarPassword);
   assert.equal((await api.put(`/api/users/${staff.id}`, { data: { updates: { status: 'suspended' } } })).status(), 200);
   await login(staff.name, staffPassword, 401);
   await login(registrar.name, registrarPassword);
-  console.log('PASS: student name/email, wrong password, and suspended accounts are rejected');
+  assert.equal((await api.put(`/api/users/${student.id}`, { data: { updates: { status: 'suspended' } } })).status(), 200);
+  await login(student.name, studentId, 401);
+  await login(registrar.name, registrarPassword);
+  await login(student.name, newStudentPassword, 401);
+  await login(registrar.name, registrarPassword);
+  console.log('PASS: students can create a password using their Student ID; new password and ID both work, while wrong credentials and suspended accounts are rejected');
 
   await page.request.post('/api/logout');
   await page.goto(baseURL);
-  await page.locator('#login-identifier-input').fill(studentId);
+  await page.locator('#login-identifier-input').fill(student.name);
   await page.locator('#login-password-input').fill(randomUUID());
   await page.getByRole('button', { name: 'Show password', exact: true }).click();
   assert.equal(await page.locator('#login-password-input').getAttribute('type'), 'text');

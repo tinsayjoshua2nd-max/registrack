@@ -401,6 +401,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                     onChange={(e) => setCurrentPasswordInput(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-mono text-sm"
                   />
+                  {currentUser?.role === 'student' && (
+                    <p className="text-[11px] text-stone-500 mt-1">
+                      You can use your Student ID or current account password. Your Student ID will still work after setting a new password.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block font-bold text-stone-700 mb-1">

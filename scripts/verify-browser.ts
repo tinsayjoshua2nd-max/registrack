@@ -50,7 +50,7 @@ try {
   const records = await (await api.get('/api/state')).json();
   assert(records.studentRecords.some((s: any) => s.studentId === studentId));
   await page.locator('#superadmin-logout-button').click();
-  await page.locator('#login-identifier-input').fill(studentId);
+  await page.locator('#login-identifier-input').fill(name);
   await page.locator('#login-password-input').fill(studentPassword);
   await page.locator('#btn-login-submit').click();
   await page.getByText(name, { exact: true }).first().waitFor();

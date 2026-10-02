@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from 'node:process';
 import type { NextFunction, Request, Response } from 'express';
 import { withTransaction, pool } from './database';
@@ -763,6 +763,18 @@ async function ensureBootstrapAccount(): Promise<void> {
   });
 }
 
+async function verifyAccountCredential(
+  account: Pick<AccountRow, 'role' | 'student_id' | 'password_hash'>,
+  password: string,
+): Promise<boolean> {
+  const matchesPassword = await verifyPassword(password, account.password_hash);
+  if (matchesPassword) return true;
+  if (account.role !== 'student' || !account.student_id) return false;
+  const supplied = Buffer.from(password);
+  const studentId = Buffer.from(account.student_id);
+  return supplied.length === studentId.length && timingSafeEqual(supplied, studentId);
+}
+
 function roleForLogin(userRole: string, requestedRole: string): boolean {
   if (requestedRole === 'auto') return true;
   if (requestedRole === 'student') return userRole === 'student';
@@ -822,7 +834,7 @@ export function registerApi(app: import('express').Express): void {
       const matches = await pool.query<AccountRow>(
         `SELECT id, name, email, role, status, student_id, password_hash, data, created_at
          FROM registrack_accounts
-         WHERE (role = 'student' AND lower(coalesce(student_id, '')) = $1)
+         WHERE (role = 'student' AND lower(name) = $1)
             OR (role <> 'student' AND (lower(name) = $1 OR lower(email) = $1))`,
         [normalized],
       );
@@ -831,7 +843,7 @@ export function registerApi(app: import('express').Express): void {
       const authenticated: AccountRow[] = [];
       for (const candidate of matches.rows) {
         if (candidate.status === 'active' && roleForLogin(candidate.role, role) &&
-          await verifyPassword(password, candidate.password_hash)) authenticated.push(candidate);
+          await verifyAccountCredential(candidate, password)) authenticated.push(candidate);
       }
       const row = authenticated.length === 1 ? authenticated[0] : undefined;
       if (!row) {
@@ -1418,11 +1430,11 @@ export function registerApi(app: import('express').Express): void {
         typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 256) {
         return fail(res, 400, 'Enter your current password and choose a new password with at least 8 characters.');
       }
-      const result = await pool.query<{ password_hash: string }>(
-        'SELECT password_hash FROM registrack_accounts WHERE id = $1 AND status = $2',
+      const result = await pool.query<Pick<AccountRow, 'role' | 'student_id' | 'password_hash'>>(
+        'SELECT role, student_id, password_hash FROM registrack_accounts WHERE id = $1 AND status = $2',
         [auth.accountId, 'active'],
       );
-      if (!result.rows[0] || !(await verifyPassword(oldPassword, result.rows[0].password_hash))) {
+      if (!result.rows[0] || !(await verifyAccountCredential(result.rows[0], oldPassword))) {
         return fail(res, 401, 'Your current password is incorrect.');
       }
       await pool.query(

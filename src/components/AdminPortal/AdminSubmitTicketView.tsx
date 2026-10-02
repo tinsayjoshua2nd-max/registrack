@@ -21,7 +21,6 @@ import {
   Clock,
   Layers,
   ChevronRight,
-  ExternalLink,
   Users,
   X,
 } from 'lucide-react';
@@ -33,10 +32,6 @@ export const AdminSubmitTicketView: React.FC = () => {
     staffList,
     submitNewTicket,
     setAdminView,
-    setRole,
-    setStudentView,
-    setTrackingTicketNumber,
-    setSelectedTicket,
     currentUser,
   } = useHelpdesk();
 
@@ -106,7 +101,6 @@ export const AdminSubmitTicketView: React.FC = () => {
   const [copies, setCopies] = useState<number>(1);
   const [purpose, setPurpose] = useState<string>('');
   const [priority, setPriority] = useState<TicketPriority>('Normal');
-  const [subject, setSubject] = useState<string>('');
   const [description, setDescription] = useState<string>('');
 
   // Staff Reassignment state: Receiver can reassign to records management, evaluator, or registrar
@@ -160,7 +154,6 @@ export const AdminSubmitTicketView: React.FC = () => {
     else if (newCat === 'Certified True Copies') defaultDoc = 'Certified True Copies of Documents';
 
     setDocumentType(defaultDoc);
-    setSubject('');
   };
 
   const handleReassignClick = () => {
@@ -209,7 +202,7 @@ export const AdminSubmitTicketView: React.FC = () => {
         deliveryOption: 'Office Pick-up',
         priority,
         assignedTo: assignedStaff,
-        subject: subject.trim(),
+        subject: `${documentType || category} Request`,
         description: description.trim(),
       });
 
@@ -226,20 +219,12 @@ export const AdminSubmitTicketView: React.FC = () => {
     setTimeout(() => setCopiedTicket(false), 2000);
   };
 
-  const handleViewInStudentTracking = (ticket: any) => {
-    setSelectedTicket(ticket);
-    setTrackingTicketNumber(ticket.ticketNumber);
-    setRole('student');
-    setStudentView('track');
-  };
-
   const handleResetForm = () => {
     setCreatedTicket(null);
     setCategory('Certificates');
     setDocumentType('Certificate of Enrollment');
     setCopies(1);
     setPurpose('');
-    setSubject('');
     setDescription('');
   };
 
@@ -408,13 +393,6 @@ export const AdminSubmitTicketView: React.FC = () => {
                   <span>Print Counter Claim Slip</span>
                 </button>
 
-                <button
-                  onClick={() => handleViewInStudentTracking(createdTicket)}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Test Track in Student Account</span>
-                </button>
               </div>
 
               <div className="flex items-center gap-2">
@@ -764,19 +742,6 @@ export const AdminSubmitTicketView: React.FC = () => {
                   <option value="Urgent">Urgent (Expedited / 24-48 Hours)</option>
                   <option value="Priority">Priority (Same-Day / Deadline Case)</option>
                 </select>
-              </div>
-
-              <div className="lg:col-span-2">
-                <label className="block font-bold text-stone-700 mb-1">
-                  Subject / Summary <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-medium"
-                />
               </div>
 
               <div className="lg:col-span-3">

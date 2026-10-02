@@ -72,6 +72,7 @@ interface HelpdeskContextType {
   startupError: string | null;
   isAuthenticated: boolean;
   currentUser: AuthenticatedUser | null;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginStudent: (studentIdentifier: string, passwordOrStudentId: string, degreeProgram?: string) => Promise<{ success: boolean; error?: string }>;
   loginAdmin: (adminName: string, adminPassword: string) => Promise<{ success: boolean; error?: string }>;
   loginSuperAdmin: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -431,7 +432,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const performLogin = async (
-    requestedRole: 'student' | 'admin' | 'superadmin',
+    requestedRole: 'auto' | 'student' | 'admin' | 'superadmin',
     identifier: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
@@ -442,7 +443,10 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const { user } = await api<{ user: AuthenticatedUser }>('/api/login', {
         method: 'POST',
-        body: JSON.stringify({ role: requestedRole, identifier: identifier.trim(), password }),
+        body: JSON.stringify({
+          ...(requestedRole === 'auto' ? {} : { role: requestedRole }),
+          identifier: identifier.trim(), password,
+        }),
       });
       if (generation !== accountGenerationRef.current) return { success: false, error: 'Your session changed before sign-in completed.' };
       await hydrateAccount(user, generation);
@@ -454,6 +458,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const login = (identifier: string, password: string) => performLogin('auto', identifier, password);
   const loginStudent = (identifier: string, password: string) => performLogin('student', identifier, password);
   const loginAdmin = (identifier: string, password: string) => performLogin('admin', identifier, password);
   const loginSuperAdmin = (identifier: string, password: string) => performLogin('superadmin', identifier, password);
@@ -2081,6 +2086,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         startupError,
         isAuthenticated,
         currentUser,
+        login,
         loginStudent,
         loginAdmin,
         loginSuperAdmin,

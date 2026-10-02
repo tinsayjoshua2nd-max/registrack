@@ -30,10 +30,10 @@ page.on('response', response => {
 page.on('pageerror', error => failures.push(error.message));
 try {
   await page.goto(baseURL);
-  await page.locator('#tab-login-superadmin').click();
-  await page.locator('#superadmin-name-input').fill('Stevie Ray Rotulo');
-  await page.locator('#superadmin-password-input').fill(credential);
-  await page.locator('#btn-login-superadmin-submit').click();
+  assert.equal(await page.locator('[id^="tab-login-"]').count(), 0);
+  await page.locator('#login-identifier-input').fill('Stevie Ray Rotulo');
+  await page.locator('#login-password-input').fill(credential);
+  await page.locator('#btn-login-submit').click();
   await page.getByText('Stevie Ray Rotulo', { exact: true }).first().waitFor();
   await page.getByText('Student Records', { exact: true }).click();
   await page.getByRole('button', { name: 'Register New Student Profile' }).click();
@@ -50,9 +50,9 @@ try {
   const records = await (await api.get('/api/state')).json();
   assert(records.studentRecords.some((s: any) => s.studentId === studentId));
   await page.locator('#superadmin-logout-button').click();
-  await page.locator('#student-name-input').fill(studentId);
-  await page.locator('#student-password-input').fill(studentPassword);
-  await page.locator('#btn-login-student-submit').click();
+  await page.locator('#login-identifier-input').fill(studentId);
+  await page.locator('#login-password-input').fill(studentPassword);
+  await page.locator('#btn-login-submit').click();
   await page.getByText(name, { exact: true }).first().waitFor();
   await page.locator('#nav-student-submit').click();
   await page.locator('form').last().locator('input[required]').first().fill('Browser verification request');

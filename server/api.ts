@@ -764,6 +764,7 @@ async function ensureBootstrapAccount(): Promise<void> {
 }
 
 function roleForLogin(userRole: string, requestedRole: string): boolean {
+  if (requestedRole === 'auto') return true;
   if (requestedRole === 'student') return userRole === 'student';
   if (requestedRole === 'admin') return userRole !== 'student' && userRole !== 'superadmin';
   return requestedRole === 'superadmin' && userRole === 'superadmin';
@@ -808,8 +809,9 @@ export async function initializeApi(): Promise<void> {
 export function registerApi(app: import('express').Express): void {
   app.post('/api/login', csrfGuard, loginRateLimit, async (req, res, next) => {
     try {
-      const { role, identifier, password } = req.body || {};
-      if (!['student', 'admin', 'superadmin'].includes(role) ||
+      const { identifier, password } = req.body || {};
+      const role = req.body?.role ?? 'auto';
+      if (!['auto', 'student', 'admin', 'superadmin'].includes(role) ||
         typeof identifier !== 'string' || !identifier.trim() ||
         typeof password !== 'string' || !password) {
         fail(res, 400, 'Enter your account identifier and password.');
@@ -820,13 +822,19 @@ export function registerApi(app: import('express').Express): void {
       const matches = await pool.query<AccountRow>(
         `SELECT id, name, email, role, status, student_id, password_hash, data, created_at
          FROM registrack_accounts
-         WHERE lower(name) = $1 OR lower(email) = $1 OR lower(coalesce(student_id, '')) = $1
-         LIMIT 1`,
+         WHERE (role = 'student' AND lower(coalesce(student_id, '')) = $1)
+            OR (role <> 'student' AND (lower(name) = $1 OR lower(email) = $1))`,
         [normalized],
       );
-      const row = matches.rows[0];
-      if (!row || row.status !== 'active' || !roleForLogin(row.role, role) ||
-        !(await verifyPassword(password, row?.password_hash || ''))) {
+      // Resolve identity only after verifying credentials. Never select an arbitrary
+      // account when a username overlaps another account's ID or email.
+      const authenticated: AccountRow[] = [];
+      for (const candidate of matches.rows) {
+        if (candidate.status === 'active' && roleForLogin(candidate.role, role) &&
+          await verifyPassword(password, candidate.password_hash)) authenticated.push(candidate);
+      }
+      const row = authenticated.length === 1 ? authenticated[0] : undefined;
+      if (!row) {
         const key = req.ip || 'unknown';
         const attempt = loginAttempts.get(key);
         if (attempt) attempt.count += 1;

@@ -1083,18 +1083,7 @@ export function registerApi(app: import('express').Express): void {
       if (!req.auth) return fail(res, 401, 'Your session is no longer valid.');
       if (!isObject(req.body)) return fail(res, 400, 'A workflow action is required.');
       const ticket = await withTransaction(client => performTicketWorkflow(client, req.params.id, req.body, req.auth!, {
-        lock: lockResource, save: saveResource,
-        access: async (ticket, actor, client) => {
-          const assignee = String(ticket.assignedTo || '').trim().toLowerCase();
-          if (actor.accountRole === 'superadmin' || assignee === actor.name.trim().toLowerCase()) return true;
-          if (actor.accountRole !== 'receiver') return false;
-          const settings = await client.query<{ payload: Record<string, unknown> }>(
-            "SELECT payload FROM registrack_data WHERE key = 'systemSettings'",
-          );
-          return [SUPERADMIN_OFFICE, 'Registrar Office', 'Registrar Intake Queue', 'Unassigned',
-            String(settings.rows[0]?.payload?.officeName || '')]
-            .filter(Boolean).some(queue => queue.toLowerCase() === assignee);
-        },
+        lock: lockResource, save: saveResource, access: canAccessTicket,
         assignment: validateTicketAssignmentUpdate, completion: completedRecordFromTicket,
       }));
       res.json({ ticket: scopeTicket(req.auth, ticket) });
@@ -1615,7 +1604,7 @@ function completedRecordFromTicket(
     releaseDate: String(ticket.actualReleaseDate || dateStr),
     releaseLocation: String(ticket.releaseLocation || 'Registrar Counter Window'),
     notes: String(ticket.completionNotes || ticket.notes || 'Completed request archived by the Registrar.'),
-    ticketSnapshot: { ...ticket },
+    ticketSnapshot: { ...ticket, status: 'completed', stage: 'completed' },
   };
 }
 

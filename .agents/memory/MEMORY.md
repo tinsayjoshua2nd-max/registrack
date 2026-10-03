@@ -4,3 +4,4 @@
 - [Unified login policy](unified-login-policy.md) — students use username plus Student ID or password; staff/Registrar use username or email plus password, without role tabs.
 - [Student request permissions](student-request-permissions.md) — students track existing requests; request creation belongs to staff, not student accounts.
 - [Disposable service lifetimes](disposable-service-lifetimes.md) — temporary infrastructure must stay owned by a long-lived background shell during verification.
+- [Ticket-stage policy](ticket-stage-policy.md) — server-enforced adjacent transitions, reasoned step-back, legacy compatibility, and fixture-only API verification.

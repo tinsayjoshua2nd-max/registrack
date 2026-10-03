@@ -122,7 +122,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
               <li
                 key={s.stage}
                 aria-current={isCurrent ? 'step' : undefined}
-                className="flex flex-col items-center relative z-10 text-center min-w-0 px-1"
+                className="flex flex-col items-center relative z-10 text-center min-w-0 px-0.5 sm:px-1"
               >
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all shadow-xs ${stepBg}`}
@@ -140,7 +140,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
 
                 <div className="mt-2.5 w-full">
                   <p
-                    className={`text-xs font-semibold leading-tight break-words ${
+                    className={`text-[10px] sm:text-xs font-semibold leading-tight break-normal ${
                       isCurrent
                         ? isRejected
                           ? 'text-rose-700'

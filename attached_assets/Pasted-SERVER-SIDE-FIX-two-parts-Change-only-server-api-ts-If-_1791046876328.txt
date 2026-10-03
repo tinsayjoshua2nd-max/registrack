@@ -1,0 +1,58 @@
+SERVER-SIDE FIX, two parts. Change only server/api.ts. If any other file truly
+must change, tell me first. No new packages. Do not modify existing data.
+
+BACKGROUND (found by testing a copy of this app):
+1. PUT /api/state/auditLogs and /api/state/systemActivities go through
+   mergeAppendOnlyRecords (server/api.ts ~L2382). It stores any new entry the
+   browser sends, including an invented actor and timestamp. A Receiver was able
+   to store an entry in the Super Admin's name.
+2. mergeOfficerTickets picks which version of a ticket "wins" by comparing the
+   browser-supplied updatedAt (the incomingIsNewer / winner lines). A change
+   stamped with an older time returns HTTP 200 but is silently thrown away, so a
+   staff PC with a wrong clock loses edits with no warning, and a future-dated
+   stamp always wins. This check is redundant: PUT already rejects stale data
+   with 409 through the resource version.
+
+PART 1 - trusted audit identity
+For every NEW entry accepted into auditLogs and systemActivities:
+- set actor and actor role from the signed-in session (req.auth), ignoring what
+  the browser sent;
+- set timestamp to the server's current time (ISO) and recompute any display
+  field derived from it (e.g. timeStr) from that time;
+- keep only known fields, cap string lengths (about 500 characters, 2000 for
+  details), and reject anything else with a clear 400;
+- keep the rules that existing entries cannot be edited or deleted and that
+  duplicate ids are ignored.
+First check whether any legitimate client log intentionally names a different
+actor than the signed-in user. If so, keep that name inside the details text and
+tell me. Do not modify the entries already stored.
+
+PART 2 - ticket update ordering
+- In mergeOfficerTickets, stop using the browser's updatedAt to choose a winner.
+  If the resource version check passed and the account may access the ticket,
+  accept the submitted version of that ticket.
+- The server sets updatedAt itself (server time) whenever a ticket's content
+  really changed, and ignores the browser's updatedAt.
+- Keep every existing protection: messages only through the messages endpoint,
+  internalNotes merge, assignment validation, immutable id / ticket number /
+  student owner, 403 for officers not assigned to the ticket, 409 on a stale
+  resource version.
+- Search the client for uses of updatedAt (sorting, the conflict handling around
+  HelpdeskContext.tsx ~L582-668) and make sure nothing breaks. Tell me what you
+  found.
+
+TEST: use ONLY records named ZZ-TEST-..., list them at the end, delete nothing
+that already exists, never print secrets. You may sign in with the bootstrap
+Super Admin and create one test student, one test ticket and test
+receiver/evaluator accounts. Check:
+a) an audit entry sent with actor "Someone Else" and a 2020 timestamp is stored
+   with the real session name and the server's current time;
+b) a ticket change stamped 2020 now applies; one stamped 2099 gets no
+   permanent priority; the stored updatedAt is the server's time;
+c) two sessions saving from the same version: the second still gets 409;
+d) an Evaluator still gets 403 on a ticket not assigned to them;
+e) in the UI, change a stage with the Direct Stage buttons and confirm the Track
+   page and the Audit Trail still display correctly;
+f) npm run lint passes.
+Keep tests short and API-level where possible. Do not run long multi-width
+visual checks. Report with file names, line numbers and the diff.

@@ -1,0 +1,176 @@
+Apply ONE small, exact change to src/components/Common/TimelineProgress.tsx.
+Do not edit any other file. Do not "improve", reformat or refactor anything else.
+
+BUG: On the 5-step progress timeline, the green progress line overshoots the
+active circle at stage 3 and gets worse at stages 4 and 5, and at "Completed"
+it runs past the last circle and makes the row overflow sideways. The
+"Completed" step also shows a pulsing clock instead of a check mark, and
+"Request Submitted" can show a raw timestamp like 2026-10-02T04:43:05.956Z.
+
+ROOT CAUSE: the fill width was calculated as a percentage of the full row width
+and shifted by left-6 (24px), while the circles are laid out with flex
+justify-between, so the maths never matched the circle positions.
+
+WHAT TO DO:
+1. Open src/components/Common/TimelineProgress.tsx.
+2. Keep EVERYTHING above the end of the `const STAGES = [...]` array exactly as is
+   (imports, props interface, STAGES).
+3. Keep EVERYTHING from the comment `{/* Rejection / Action Required Callout */}`
+   to the end of the file exactly as is.
+4. Replace ONLY the code between those two points (it starts right after the
+   STAGES array, and contains the TimelineProgress component up to and including
+   the closing </div> of the `<div className="py-2">` stepper wrapper) with the
+   block below, copied VERBATIM:
+
+```tsx
+// Server-created tickets store the first step's timestamp as a raw ISO string
+// (e.g. "2026-10-02T04:43:05.956Z"), while client-created entries are already
+// human-readable. Normalise both so the timeline always shows a friendly date.
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+const formatStepTimestamp = (raw?: string): string | null => {
+  if (!raw || raw === 'Upcoming step') return null;
+  if (!ISO_TIMESTAMP.test(raw)) return raw;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return `${day} • ${time}`;
+};
+
+export const TimelineProgress: React.FC<TimelineProgressProps> = ({
+  ticket,
+  orientation = 'horizontal',
+}) => {
+  const { users } = useHelpdesk();
+  const stageOrder: TicketStage[] = ['submitted', 'processing', 'for_seal', 'ready', 'completed'];
+  // Normalization for legacy stage names
+  const effectiveStage: TicketStage =
+    ticket.stage === 'reviewed' ? 'processing' : ticket.stage;
+  const currentIndex = stageOrder.indexOf(effectiveStage);
+
+  // Filter out any removed claiming requirements
+  const sanitizedRequirements = (ticket.claimingRequirements || [])
+    .map((req) => req.replace(/\s*or\s*1\s*Government-issued\s*ID/gi, '').trim())
+    .filter(
+      (req) =>
+        !req.toLowerCase().includes('documentary stamp tax') &&
+        !req.toLowerCase().includes('php 150.00') &&
+        req.length > 0
+    );
+
+  // If status is rejected, stage might be on hold
+  const isRejected = ticket.status === 'rejected';
+  // A completed request has no "in progress" step left: every step is done.
+  const isFinished = effectiveStage === 'completed' && !isRejected;
+
+  // Layout maths: the 5 steps sit in 5 equal grid columns, so each circle is
+  // centred at 10%, 30%, 50%, 70%, 90% of the row. The connector therefore runs
+  // from 10% to 90% (an 80% span) and the fill must be a share of THAT span.
+  const SPAN_PERCENT = 80;
+  const fillPercent = (Math.max(0, currentIndex) / (STAGES.length - 1)) * SPAN_PERCENT;
+
+  return (
+    <div id={`timeline-progress-${ticket.id}`} className="w-full">
+      {/* Visual Timeline Steps */}
+      <div className="py-2">
+        <ol className="grid grid-cols-5 relative list-none m-0 p-0">
+          {/* Background Connecting Line (circle-1 centre -> circle-5 centre) */}
+          <li
+            aria-hidden="true"
+            className="absolute left-[10%] right-[10%] top-5 -translate-y-1/2 h-1 bg-stone-200 z-0"
+          />
+          {/* Active Fill Line */}
+          <li
+            aria-hidden="true"
+            className={`absolute left-[10%] top-5 -translate-y-1/2 h-1 transition-all duration-500 z-0 ${
+              isRejected ? 'bg-rose-400' : 'bg-emerald-600'
+            }`}
+            style={{ width: `${fillPercent}%` }}
+          />
+
+          {STAGES.map((s, idx) => {
+            const isPassed = idx < currentIndex || (isFinished && idx === currentIndex);
+            const isCurrent = idx === currentIndex && !isFinished;
+
+            // Find matching event from history if available
+            const histEvent = ticket.timelineHistory.find((h) => h.stage === s.stage);
+            const stepTimestamp = formatStepTimestamp(histEvent?.timestamp);
+
+            let stepBg = 'bg-stone-100 border-stone-300 text-stone-400';
+            if (isPassed) {
+              stepBg = 'bg-emerald-600 border-emerald-600 text-white';
+            } else if (isCurrent) {
+              stepBg = isRejected
+                ? 'bg-rose-600 border-rose-600 text-white ring-4 ring-rose-100'
+                : 'bg-emerald-700 border-emerald-700 text-white ring-4 ring-emerald-100 motion-safe:animate-pulse';
+            }
+
+            return (
+              <li
+                key={s.stage}
+                aria-current={isCurrent ? 'step' : undefined}
+                className="flex flex-col items-center relative z-10 text-center min-w-0 px-1"
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all shadow-xs ${stepBg}`}
+                >
+                  {isPassed ? (
+                    <Check className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
+                  ) : isCurrent && isRejected ? (
+                    <AlertCircle className="w-5 h-5" aria-hidden="true" />
+                  ) : isCurrent ? (
+                    <Clock className="w-5 h-5" aria-hidden="true" />
+                  ) : (
+                    <span aria-hidden="true">{idx + 1}</span>
+                  )}
+                </div>
+
+                <div className="mt-2.5 w-full">
+                  <p
+                    className={`text-xs font-semibold leading-tight break-words ${
+                      isCurrent
+                        ? isRejected
+                          ? 'text-rose-700'
+                          : 'text-emerald-900'
+                        : isPassed
+                        ? 'text-stone-800'
+                        : 'text-stone-600'
+                    }`}
+                  >
+                    {s.label}
+                    <span className="sr-only">
+                      {isPassed ? ' (done)' : isCurrent ? ' (current step)' : ' (upcoming)'}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-stone-600 leading-snug mt-0.5 hidden sm:block break-words">
+                    {stepTimestamp ?? s.description}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+```
+
+5. Do not rename anything. The exports, props, imports and every line after
+   the Rejection callout comment must stay identical.
+
+AFTER EDITING, VERIFY (and report results honestly, including anything that fails):
+- Run `npm run lint` (tsc --noEmit). It must pass.
+- Show me the diff of ONLY this file. If any other file changed, revert that.
+- In the running app, using TEST tickets only (never real data), open one ticket
+  as Student (Track Request) and as Staff (ticket detail modal) and use the
+  "Direct Stage" buttons to move through stages 1 to 5. At EACH stage check:
+  a) the green line ends exactly at the centre of the active circle;
+  b) at stage 5 all five circles show check marks, nothing pulses, and nothing
+     overflows or scrolls sideways;
+  c) "Request Submitted" shows a friendly date like "Oct 2, 2026 • 04:43 AM",
+     not 2026-10-02T04:43:05.956Z.
+- Repeat the check at phone width (about 360px), tablet (768px) and desktop.
+- Check a REJECTED ticket still shows the rose/red styling and the rejection box.
+- Check a ticket with the old stage name "reviewed" shows as Processing.
+- Check a ticket created in the browser (with 5 history entries) still shows its
+  timestamps correctly.
+- Tell me if the Student and Staff views look different from each other.
+If any check fails, stop and tell me; do not try to fix other files.

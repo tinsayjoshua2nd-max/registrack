@@ -36,6 +36,7 @@ const STAGES: { stage: TicketStage; label: string; description: string }[] = [
   },
 ];
 
+
 // Server-created tickets store the first step's timestamp as a raw ISO string
 // (e.g. "2026-10-02T04:43:05.956Z"), while client-created entries are already
 // human-readable. Normalise both so the timeline always shows a friendly date.
@@ -78,7 +79,9 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
 
   // Layout maths: the 5 steps sit in 5 equal grid columns, so each circle is
   // centred at 10%, 30%, 50%, 70%, 90% of the row. The connector therefore runs
-  // from 10% to 90% (an 80% span) and the fill must be a share of THAT span.
+  // from 10% to 90% (an 80% span) and the fill must be a share of THAT span,
+  // not of the full row width (the old code used 100% and shifted by 24px,
+  // which overshot the active circle and, at "Completed", overflowed the row).
   const SPAN_PERCENT = 80;
   const fillPercent = (Math.max(0, currentIndex) / (STAGES.length - 1)) * SPAN_PERCENT;
 
@@ -164,6 +167,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
           })}
         </ol>
       </div>
+
 
       {/* Rejection / Action Required Callout */}
       {isRejected && ticket.rejectionReason && (

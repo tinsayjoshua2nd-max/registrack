@@ -1,0 +1,108 @@
+THIS IS A READ-ONLY AUDIT of RegisTrack. Do NOT edit, create, delete or restore
+any file, package, database row or setting. Do NOT run npm install/ci, migrations,
+or anything that changes package-lock.json, dist/ or the database.
+
+An outside reviewer tested a COPY of this project in another environment, using a
+database schema they had to guess. Treat every item below as a HYPOTHESIS. For each
+one, check the real code, the real database and the real running app (through the
+UI, signed in as the relevant role) and report CONFIRMED / NOT REPRODUCED /
+PARTIAL, with file + line evidence and steps to reproduce. If I am wrong, say so.
+If you cannot verify something, say so instead of guessing.
+
+Test data: create only uniquely named records prefixed "ZZ-AUDIT-", list them at
+the end, and do not delete them yourself. Never restore a backup. Don't touch real
+student data. Never print secret values.
+
+PART A - Things only you can check (Replit environment)
+1. DATABASE: dump the real structure (columns, types, defaults, keys, indexes,
+   foreign keys) of registrack_accounts, registrack_sessions, registrack_data.
+   Is there ANY schema or migration file in the repo? Does the server create the
+   tables on startup? What happens if DATABASE_URL points at an empty database?
+   (I saw: "relation registrack_accounts does not exist".)
+2. package-lock.json: I saw 286 "resolved" URLs pointing at
+   package-firewall.replit.internal. Confirm. Is that normal for Replit? Would
+   `npm ci` work on a normal computer? Report only.
+3. ENV/SECRETS: list every environment variable the code reads and whether it is
+   set (yes/no only). Is .env.example accurate (it mentions GEMINI_API_KEY and
+   APP_URL; are they used)? Is REGISTRAR_BOOTSTRAP_PASSWORD documented anywhere?
+4. DEPLOYMENT: read .replit and the deployment config: build/run commands, port,
+   NODE_ENV, how the production build is served. Does `npm run build` succeed
+   (without overwriting dist/)? Do dev and the published app share one database?
+5. LEFTOVERS: check whether zipFile.zip, firebase-applet-config.json,
+   @google/genai, motion, artifacts/mockup-sandbox and .agents/ are used by any
+   code. Report only.
+6. Run `npm run lint` and report the output.
+
+PART B - Behaviour nobody tested (use the UI as Receiver, Records Management,
+Evaluator, Registrar, Super Admin and Student)
+- Full ticket lifecycle across roles: handoffs, Direct Stage buttons (which roles
+  see them), reject, delete, restore, completion archive. If a Completed ticket
+  is moved back to an earlier stage, what happens to the archive record,
+  completedAt and actualReleaseDate?
+- Can a staff user act on a ticket NOT assigned to them (UI and direct API)?
+- Audit Trail: which actions create entries, and where (browser or server)? Can a
+  staff user skip or forge entries via PUT /api/state/auditLogs? Are logins, stage
+  changes and account changes recorded? Is the "Immutable Log" label true?
+- Backup & Health: what do Generate Backup Snapshot, Restore Backup and Cold
+  Archival really do? Is "Online/Connected" a real check or static text? Read the
+  code; do NOT run Restore.
+- Notification bell: what creates notifications and is the badge count correct?
+- Two staff editing the same ticket (409 handling), session expiry mid-action,
+  double-clicking submit/stage buttons, browser back/refresh on every portal.
+- Visual check of EVERY page for EVERY role at 360px, 768px and 1366px
+  (the reviewer only inspected phone widths by eye).
+- Student/staff chat.
+
+PART C - Hypotheses to confirm or refute
+H1  Server-created tickets have ONE timelineHistory entry (server/api.ts ~L2091,
+    raw ISO timestamp). updateTicketStatus (HelpdeskContext.tsx) only updates
+    existing entries, so stages 2-5 never get a record; the completion archive
+    (server ~L1519) can't find who completed it.
+H2  Direct Stage buttons (TicketDetailAdminModal.tsx) have no confirmation and no
+    role gating; the server checks who may edit but not which stage jumps are valid.
+H3  AdminSubmitTicketView.tsx: "Reassign" only shows a success toast (blank name if
+    nothing selected); the select + shrink-0 button overflows ~82px at 390px.
+H4  Navbar.tsx: active "Application Form" icon is text-emerald-700 on a
+    bg-emerald-700 button (invisible); its active colour differs from other tabs.
+H5  Server creates tickets with estimatedReleaseDate '' and releaseLocation '', so
+    students see blank "Est:" (TrackTicketView ~L144) and "Estimated Release:"
+    (RegistrarChatView ~L151) while the timeline card says "Within 2-3 Working Days".
+H6  TrackTicketView shows "4-Stage Verification" above a 5-step timeline and the
+    raw text "Stage: submitted".
+H7  FAQ tells students to use the "Application Form" and submit tickets, but
+    students don't have it and POST /api/tickets returns 403 for students. FAQ also
+    lists a "Php 150.00/copy" fee that TimelineProgress.tsx deliberately strips.
+H8  System Settings that are saved but never used: emailNotificationsEnabled,
+    smsAlertsEnabled, emailTemplates, allowStudentRegistration,
+    maxPendingTicketsPerStaff (UI says "per Evaluator"). No email/SMS library
+    exists. maintenanceMode and autoAssignmentEnabled ARE enforced.
+H9  Auto-assignment (server ~L1700) always picks the first staff member by role
+    order then created_at (LIMIT 1), not an even distribution as the UI says.
+H10 Super Admin Dashboard shows "4 Staff & Admins" but User Management shows 5;
+    "Active Users 7 / LIVE" looks like total registered accounts, not live users.
+H11 Student login accepts name + (password OR student ID); the student ID remains
+    valid even after the student changes their password (server
+    verifyAccountCredential ~L761). The login page says "Enter password or Student
+    ID". Report only; do not change.
+H12 Server writes raw ISO timestamps for the first timeline step; the client writes
+    formatted text; server formatArrival() uses the SERVER timezone.
+H13 Accessibility: 1-15 inputs per page without a label; modals lack role="dialog",
+    Escape handling and focus trap; ~230 text spots at 10-11px; ~186 buttons
+    without type=; pulse animations ignore reduced-motion.
+H14 getOfficerRole silently treats unknown staff roles ("staff", "admin") as
+    "registrar".
+H15 The staff/student mobile nav strip scrolls sideways with no hint, cutting tabs.
+H16  Presence/Last Active: how is "lastActive" set today (login only, or every
+     request)? Where is it stored? What happens on logout, session expiry and
+     closing the tab? Is the account status (active/inactive/...) used to block
+     login? Report only.
+H17  Audit Trail chips (All Events, Auth, Tickets, Roles, System): how is each
+     event's category assigned? Is "All Events (n)" the total or the filtered
+     count? Do the category counts add up to the total? Are there events with a
+     category that no chip shows?
+H18  User-Management "Last Active" and Audit Trail timestamps show raw ISO text
+     in UTC. Confirm, and check the Export CSV files for the same problem and
+     for internal keys like "for_seal".
+
+Finish with a table: item | status | evidence | risk (High/Med/Low) | suggested
+fix | files touched. Do not implement anything.

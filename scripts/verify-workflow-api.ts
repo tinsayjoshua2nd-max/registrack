@@ -202,6 +202,71 @@ try {
     await workflow('receiver', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true }, 403);
     await workflow('superadmin', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true });
   });
+  await check('browser-submitted audit and activity entries use session actor and server time', async () => {
+    const current = await state();
+    const oldAudit = {
+      id: 'ZZ-TEST-audit-existing', timestamp: 'ZZ-TEST-original-time',
+      actorName: 'ZZ-TEST-original-actor', actorRole: 'ZZ-TEST-original-role',
+      action: 'ZZ-TEST-existing', category: 'System', details: 'ZZ-TEST-existing',
+      ipAddress: 'Unavailable', severity: 'info',
+    };
+    const oldActivity = {
+      id: 'ZZ-TEST-activity-existing', timeStr: 'ZZ-TEST-original-time', timestamp: 'ZZ-TEST-original-time',
+      actor: 'ZZ-TEST-original-actor', text: 'ZZ-TEST-existing', actionType: 'setting_updated',
+    };
+    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='auditLogs'", [JSON.stringify([oldAudit])]);
+    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='systemActivities'", [JSON.stringify([oldActivity])]);
+    const refreshed = await state();
+    const audit = {
+      id: 'ZZ-TEST-audit-new', timestamp: 'ZZ-TEST-forged-time', actorName: 'ZZ-TEST-forged-actor',
+      actorRole: 'ZZ-TEST-forged-role', action: 'ZZ-TEST-browser-action', category: 'System',
+      details: 'ZZ-TEST-browser details', ipAddress: 'Unavailable', severity: 'info',
+    };
+    const activity = {
+      id: 'ZZ-TEST-activity-new', timeStr: 'ZZ-TEST-forged-time', timestamp: 'ZZ-TEST-forged-time',
+      actor: 'ZZ-TEST-forged-actor', text: 'ZZ-TEST-browser activity', actionType: 'setting_updated',
+    };
+    const auditAck = await request('superadmin', '/api/state/auditLogs', 'PUT', {
+      payload: [oldAudit, audit], version: refreshed._versions.auditLogs,
+    });
+    assert.equal(auditAck.status, 200);
+    const activityAck = await request('superadmin', '/api/state/systemActivities', 'PUT', {
+      payload: [oldActivity, activity], version: refreshed._versions.systemActivities,
+    });
+    assert.equal(activityAck.status, 200);
+    const saved = await state();
+    const savedAudit = saved.auditLogs.find((entry: any) => entry.id === audit.id);
+    const savedActivity = saved.systemActivities.find((entry: any) => entry.id === activity.id);
+    assert.equal(savedAudit.actorName, 'ZZ-TEST-superadmin');
+    assert.equal(savedAudit.actorRole, 'Super Administrator');
+    assert.equal(savedAudit.actorAccountId, 'ZZ-TEST-superadmin');
+    assert(!Number.isNaN(Date.parse(savedAudit.timestamp)));
+    assert.equal(savedActivity.actor, 'ZZ-TEST-superadmin');
+    assert.equal(savedActivity.actorAccountId, 'ZZ-TEST-superadmin');
+    assert(!Number.isNaN(Date.parse(savedActivity.timestamp)));
+    assert.notEqual(savedActivity.timeStr, 'ZZ-TEST-forged-time');
+    assert.deepEqual(saved.auditLogs.find((entry: any) => entry.id === oldAudit.id), oldAudit);
+    assert.deepEqual(saved.systemActivities.find((entry: any) => entry.id === oldActivity.id), oldActivity);
+  });
+  await check('non-stage ticket fields remain saveable while stage, status, and history remain blocked', async () => {
+    const current = await state();
+    const original = current.tickets.find((entry: any) => entry.id === 'ZZ-TEST-receiver');
+    assert(original);
+    const save = (changes: Record<string, unknown>) => request('superadmin', '/api/state/tickets', 'PUT', {
+      payload: current.tickets.map((entry: any) => entry.id === original.id ? { ...entry, ...changes } : entry),
+      version: current._versions.tickets,
+    });
+    for (const changes of [
+      { stage: 'completed' }, { status: 'completed' },
+      { timelineHistory: [...original.timelineHistory, { stage: 'completed', title: 'ZZ-TEST-forged' }] },
+    ]) {
+      assert.equal((await save(changes)).status, 403);
+    }
+    const editable = await save({ priority: 'Urgent', releaseLocation: 'ZZ-TEST-release-location' });
+    assert.equal(editable.status, 200);
+    assert.equal(editable.body.payload.find((entry: any) => entry.id === original.id).priority, 'Urgent');
+    assert.equal(editable.body.payload.find((entry: any) => entry.id === original.id).releaseLocation, 'ZZ-TEST-release-location');
+  });
   await check('state-save bypass, stale updates, audit spoof and transactional rollback', async () => {
     let data = await state();
     const payload = data.tickets.map((t: any) => t.id === 'ZZ-TEST-receiver' ? { ...t, stage: 'completed', status: 'completed' } : t);

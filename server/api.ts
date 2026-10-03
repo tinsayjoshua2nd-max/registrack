@@ -1255,7 +1255,7 @@ export function registerApi(app: import('express').Express): void {
               throw new ApiError(403, 'Workflow audit records are server-written only.');
             }
           }
-          const merged = mergeAppendOnlyRecords(stored, payload);
+          const merged = stampBrowserAuthoredRecords(stored, payload, key, auth);
           await saveResource(client, key, merged);
           return { payload: merged, version: locked.version + 1 };
         }
@@ -2458,6 +2458,54 @@ function mergeAppendOnlyRecords(currentValue: unknown, submittedValue: unknown):
     }
   }
   return merged;
+}
+
+function auditRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    receiver: 'Receiver / Receiving',
+    records_management: 'Records Management',
+    evaluator: 'Evaluator',
+    registrar: 'Registrar Officer',
+    superadmin: 'Super Administrator',
+  };
+  return labels[role] || role;
+}
+
+function stampBrowserAuthoredRecords(
+  currentValue: unknown,
+  submittedValue: unknown,
+  resource: 'auditLogs' | 'systemActivities',
+  auth: AuthenticatedAccount,
+): Record<string, unknown>[] {
+  const merged = mergeAppendOnlyRecords(currentValue, submittedValue);
+  const existingIds = new Set(
+    (Array.isArray(currentValue) ? currentValue.filter(isObject) : []).map(record => String(record.id || '')),
+  );
+  const timestamp = new Date().toISOString();
+  const timeStr = new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return merged.map(record => {
+    if (existingIds.has(String(record.id || ''))) return record;
+    if (resource === 'auditLogs') {
+      return {
+        ...record,
+        timestamp,
+        actorName: auth.name,
+        actorRole: auditRoleLabel(auth.accountRole),
+        actorAccountId: auth.accountId,
+      };
+    }
+    return {
+      ...record,
+      timeStr,
+      timestamp,
+      actor: auth.name,
+      actorAccountId: auth.accountId,
+    };
+  });
 }
 
 async function mergeOfficerHistory(

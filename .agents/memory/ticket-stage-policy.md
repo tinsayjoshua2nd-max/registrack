@@ -20,3 +20,15 @@ Keep ticket-stage verification short and API-level, using ZZ-TEST records only.
 **Why:** The user explicitly constrained testing for this work.
 
 **How to apply:** Use only fixture records for API checks. Never exercise global archive or backup-restore operations against a database containing real records.
+
+Keep administrative Reopen as a reasoned, confirmed Super Admin exception for completed or rejected requests. Force Close requires Ready and confirmation. Reject and manual handoff must preserve the stage; guided handoff may advance only through a valid adjacent transition.
+
+**Why:** The user explicitly approved these lifecycle interactions rather than removing the existing administrative exception or allowing unrestricted Force Close.
+
+**How to apply:** Preserve original history and snapshot stages during recovery and archive. Treat legacy `reviewed` as Processing for validation without changing stored data on reads.
+
+If lint or any test fails, stop and report instead of fixing and rerunning within the same turn.
+
+**Why:** The user explicitly required this verification boundary.
+
+**How to apply:** Keep verification short and API-level, and report the first failing check before making further implementation changes.

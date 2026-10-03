@@ -36,6 +36,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     tickets,
     updateTicketStatus,
     passTicketToNextRole,
+    repairTicketStage,
+    systemSettings,
     updateTicketPriority,
     updateEstimatedDate,
     addInternalNote,
@@ -56,6 +58,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [staffError, setStaffError] = useState('');
+  const [workflowSaving, setWorkflowSaving] = useState(false);
   const [prioritySaving, setPrioritySaving] = useState(false);
   const [priorityError, setPriorityError] = useState('');
 
@@ -83,6 +86,28 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
 
   const normalizedStage: TicketStage =
     ticket.stage === 'reviewed' ? 'processing' : ticket.stage;
+  const stageOrder: TicketStage[] = ['submitted', 'processing', 'for_seal', 'ready', 'completed'];
+  const stageIndex = stageOrder.indexOf(normalizedStage);
+  const isCompleted = normalizedStage === 'completed' || ticket.status === 'completed';
+  const canOperateWorkflow = currentUser?.role === 'superadmin' ||
+    ticket.assignedTo.trim().toLowerCase() === currentUser?.name.trim().toLowerCase() ||
+    (currentUser?.staffRole === 'receiver' && ['Registrar Office', 'Registrar Intake Queue', 'Unassigned',
+      systemSettings.officeName || ''].filter(Boolean).some(name => name.toLowerCase() === ticket.assignedTo.trim().toLowerCase()));
+  const canMoveTo = (stage: TicketStage) => canOperateWorkflow && !workflowSaving && !isCompleted && stageIndex !== -1 &&
+    Math.abs(stageOrder.indexOf(stage) - stageIndex) === 1 &&
+    (stage !== 'completed' || ticket.status !== 'rejected');
+  const performWorkflow = async (action: () => Promise<void>) => {
+    if (workflowSaving) return;
+    if (!canOperateWorkflow) {
+      setStaffError('Only the currently assigned handler or Super Admin can change this workflow.');
+      return;
+    }
+    setWorkflowSaving(true);
+    setStaffError('');
+    try { await action(); }
+    catch (error) { setStaffError(error instanceof Error ? error.message : 'The workflow action could not be saved.'); }
+    finally { setWorkflowSaving(false); }
+  };
 
   // Only active, real accounts can receive a handoff.
   const receiverUser = users.find((u) => u.status === 'active' && u.role === 'receiver');
@@ -132,17 +157,18 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       return;
     }
     setStaffError('');
-    passTicketToNextRole(
+    void performWorkflow(() => passTicketToNextRole(
       ticket.id,
       staff.name,
-      stage,
+      undefined,
       notes,
       currentUser?.name || ticket.assignedTo
-    );
+    ));
   };
 
   // Determine intelligent next role handoff according to institutional workflow
   const getWorkflowRoleAction = () => {
+    if (isCompleted) return null;
     if (normalizedStage === 'submitted') {
       return {
         nextStage: 'processing' as TicketStage,
@@ -248,27 +274,31 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     setStaffError('');
 
     if (workflowRoleAction.isPass) {
-      passTicketToNextRole(
+      void performWorkflow(() => passTicketToNextRole(
         ticket.id,
         workflowRoleAction.nextStaff,
         workflowRoleAction.nextStage,
         undefined,
         currentUser?.name || ticket.assignedTo
-      );
+      ));
     } else {
       const nextStatus: TicketStatus = workflowRoleAction.nextStage === 'completed' ? 'completed' : 'processing';
-      updateTicketStatus(
+      void performWorkflow(() => updateTicketStatus(
         ticket.id,
         nextStatus,
         workflowRoleAction.nextStage,
         undefined,
         currentUser?.name || ticket.assignedTo,
         workflowRoleAction.nextStaff
-      );
+      ));
     }
   };
 
   const handleStageChange = (newStage: TicketStage) => {
+    if (!canMoveTo(newStage)) return;
+    const reason = stageOrder.indexOf(newStage) < stageIndex
+      ? window.prompt('Enter a reason for moving this request back one stage:') : undefined;
+    if (reason !== undefined && !reason?.trim()) return;
     let newStatus: TicketStatus = 'processing';
     if (newStage === 'submitted') newStatus = 'pending';
     if (newStage === 'completed') newStatus = 'completed';
@@ -290,7 +320,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     }
 
     setStaffError('');
-    updateTicketStatus(ticket.id, newStatus, newStage, undefined, currentUser?.name || ticket.assignedTo, targetAssignee);
+    void performWorkflow(() => updateTicketStatus(ticket.id, newStatus, newStage, reason || undefined, currentUser?.name || ticket.assignedTo, targetAssignee));
   };
 
   const handleConfirmCancel = () => {
@@ -299,16 +329,16 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     onClose();
   };
 
-  const handleRejectOrNeedInfo = (e: React.FormEvent) => {
+  const handleRejectOrNeedInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectReasonInput.trim()) return;
-    updateTicketStatus(
+    await performWorkflow(() => updateTicketStatus(
       ticket.id,
       'rejected',
-      'processing',
+      ticket.stage,
       rejectReasonInput.trim(),
       ticket.assignedTo
-    );
+    ));
     setShowRejectBox(false);
     setRejectReasonInput('');
   };
@@ -559,7 +589,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     {workflowRoleAction ? (
                       <button
                         onClick={handleAdvanceNextStage}
-                        disabled={!workflowRoleAction.nextStaff}
+                        disabled={!canOperateWorkflow || workflowSaving || !workflowRoleAction.nextStaff}
                         className="px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span>{workflowRoleAction.buttonText}</span>
@@ -684,7 +714,20 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                 <div className="pt-3 border-t border-stone-200 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] font-semibold text-stone-500 mr-1">Direct Stage:</span>
+                    {stageIndex === -1 && !isCompleted && (
+                      <button type="button" disabled={!canOperateWorkflow || workflowSaving} className="px-2.5 py-1 border rounded-lg text-amber-800"
+                        onClick={() => {
+                          const stage = window.prompt('Repair to: submitted, processing, for_seal, or ready', 'processing');
+                          if (!stage || !stageOrder.slice(0, 4).includes(stage as TicketStage)) {
+                            if (stage) setStaffError('Choose submitted, processing, for_seal, or ready.');
+                            return;
+                          }
+                          const reason = window.prompt('Enter the reason for repairing this legacy stage:');
+                          if (reason?.trim()) void performWorkflow(() => repairTicketStage(ticket.id, stage as TicketStage, reason));
+                        }}>Repair Legacy Stage</button>
+                    )}
                     <button
+                      disabled={!canMoveTo('submitted')}
                       onClick={() => handleStageChange('submitted')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                         normalizedStage === 'submitted'
@@ -696,6 +739,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     </button>
 
                     <button
+                      disabled={!canMoveTo('processing')}
                       onClick={() => handleStageChange('processing')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                         normalizedStage === 'processing'
@@ -707,6 +751,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     </button>
 
                     <button
+                      disabled={!canMoveTo('for_seal')}
                       onClick={() => handleStageChange('for_seal')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                         normalizedStage === 'for_seal'
@@ -718,6 +763,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     </button>
 
                     <button
+                      disabled={!canMoveTo('ready')}
                       onClick={() => handleStageChange('ready')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                         normalizedStage === 'ready'
@@ -729,6 +775,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     </button>
 
                     <button
+                      disabled={!canMoveTo('completed')}
                       onClick={() => handleStageChange('completed')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                         normalizedStage === 'completed'
@@ -741,6 +788,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                   </div>
 
                   <button
+                    disabled={!canOperateWorkflow || isCompleted || workflowSaving}
                     onClick={() => setShowRejectBox(!showRejectBox)}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 transition-colors cursor-pointer"
                   >

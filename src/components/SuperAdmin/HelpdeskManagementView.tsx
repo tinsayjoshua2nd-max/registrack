@@ -138,11 +138,15 @@ export const HelpdeskManagementView: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleForceCloseSubmit = (e: React.FormEvent) => {
+  const handleForceCloseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forceCloseModalTicket || !closeReason.trim()) return;
 
-    forceCloseTicket(forceCloseModalTicket.id, closeReason.trim());
+    try { await forceCloseTicket(forceCloseModalTicket.id, closeReason.trim()); }
+    catch (error) {
+      setNotification(error instanceof Error ? error.message : 'Force Close could not be saved.');
+      return;
+    }
     setNotification(`Ticket #${forceCloseModalTicket.ticketNumber} force-closed by Super Admin.`);
     setForceCloseModalTicket(null);
     setCloseReason('');
@@ -448,9 +452,15 @@ export const HelpdeskManagementView: React.FC = () => {
 
                 {selectedTicket.status === 'completed' || selectedTicket.status === 'rejected' ? (
                   <button
-                    onClick={() => {
-                      reopenTicket(selectedTicket.id);
-                      setSelectedTicket({ ...selectedTicket, status: 'processing', stage: 'processing' });
+                    onClick={async () => {
+                      const reason = window.prompt('Enter the reason for reopening this request:');
+                      if (!reason?.trim() || !window.confirm('Reopen this request and return it to Processing?')) return;
+                      try { await reopenTicket(selectedTicket.id, reason); }
+                      catch (error) {
+                        setNotification(error instanceof Error ? error.message : 'Reopen could not be saved.');
+                        return;
+                      }
+                      setSelectedTicket(null);
                       setNotification(`Ticket #${selectedTicket.ticketNumber} reopened.`);
                       setTimeout(() => setNotification(null), 2500);
                     }}
@@ -461,6 +471,8 @@ export const HelpdeskManagementView: React.FC = () => {
                   </button>
                 ) : (
                   <button
+                    disabled={selectedTicket.stage !== 'ready'}
+                    title={selectedTicket.stage !== 'ready' ? 'Force Close requires Ready. Advance the workflow first.' : 'Force Close this Ready request'}
                     onClick={() => setForceCloseModalTicket(selectedTicket)}
                     className="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >

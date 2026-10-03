@@ -119,14 +119,14 @@ interface HelpdeskContextType {
     reason?: string,
     actor?: string,
     newAssignee?: string
-  ) => void;
+  ) => Promise<void>;
   passTicketToNextRole: (
     ticketId: string,
     targetStaffName?: string,
     targetStage?: TicketStage,
     customNote?: string,
     actorName?: string
-  ) => void;
+  ) => Promise<void>;
   assignTicketStaff: (ticketId: string, staffName: string) => void;
   updateTicketPriority: (ticketId: string, priority: TicketPriority) => Promise<void>;
   updateEstimatedDate: (ticketId: string, newDate: string) => void;
@@ -143,6 +143,7 @@ interface HelpdeskContextType {
   recordCompletedRequest: (ticket: Ticket, notes?: string, customActor?: string) => void;
 
   // Officer History Feature
+  repairTicketStage: (ticketId: string, stage: TicketStage, reason: string) => Promise<void>;
   deletedRequestsHistory: DeletedRequestRecord[];
   completedRequestsHistory: CompletedRequestRecord[];
   getMyDeletedRequests: () => DeletedRequestRecord[];
@@ -187,8 +188,8 @@ interface HelpdeskContextType {
   updateSystemSettings: (updates: Partial<SystemSettings>) => void;
 
   reassignTicket: (ticketId: string, newAssignee: string) => void;
-  forceCloseTicket: (ticketId: string, reason: string) => void;
-  reopenTicket: (ticketId: string) => void;
+  forceCloseTicket: (ticketId: string, reason: string) => Promise<void>;
+  reopenTicket: (ticketId: string, reason: string) => Promise<void>;
   updateTicketPrioritySuperAdmin: (ticketId: string, priority: TicketPriority) => void;
 
   createSuperAnnouncement: (announcement: Omit<Announcement, 'id' | 'date'>) => void;
@@ -930,7 +931,32 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return savedTicket;
   };
 
-  const updateTicketStatus = (
+  const runTicketWorkflow = async (ticketId: string, input: Record<string, unknown>): Promise<void> => {
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await flushStateResource('tickets');
+    await flushStateResource('notifications');
+    await flushStateResource('completedRequestsHistory');
+    await flushStateResource('auditLogs');
+    const ticket = (latestResourcesRef.current.tickets as Ticket[]).find(item => item.id === ticketId);
+    if (!ticket) throw new Error('This request is no longer available.');
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed. Sign in again before continuing.');
+    }
+    try {
+      await api(`/api/tickets/${encodeURIComponent(ticketId)}/workflow`, {
+        method: 'POST',
+        body: JSON.stringify({ ...input, expectedUpdatedAt: ticket.updatedAt || '', operationId: generateUniqueId('workflow') }),
+      });
+    } catch (error) {
+      await refreshServerState(generation).catch(() => undefined);
+      throw error;
+    }
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) return;
+    await refreshServerState(generation);
+  };
+
+  const updateTicketStatus = async (
     ticketId: string,
     status: TicketStatus,
     stage: TicketStage,
@@ -938,145 +964,19 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     actor: string = 'Registrar Staff',
     newAssignee?: string
   ) => {
-    const now = new Date();
-    const formattedNow = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    if (stage === 'completed' && status !== 'rejected' &&
+      !window.confirm('Confirm that the document has been claimed and mark this request Completed?')) return;
+    await runTicketWorkflow(ticketId, {
+      action: status === 'rejected' ? 'reject' : 'stage',
+      targetStage: stage === 'reviewed' ? 'processing' : stage,
+      notes: reason, assignedTo: newAssignee, confirmed: stage === 'completed',
     });
-
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t;
-
-        // Stage progress mapping (5-stage verification)
-        const stageOrder: TicketStage[] = ['submitted', 'processing', 'for_seal', 'ready', 'completed'];
-        const normalizedStage = stage === 'reviewed' ? 'processing' : stage;
-        const currentStageIndex = stageOrder.indexOf(normalizedStage);
-
-        const updatedHistory = t.timelineHistory.map((h) => {
-          const mappedHistoryStage = h.stage === 'reviewed' ? 'processing' : h.stage;
-          const itemIndex = stageOrder.indexOf(mappedHistoryStage);
-          if (itemIndex < currentStageIndex) {
-            return { ...h, isPassed: true, isCurrent: false };
-          } else if (itemIndex === currentStageIndex) {
-            let stepNote = reason || 'Stage updated successfully.';
-            if (!reason) {
-              if (normalizedStage === 'completed') stepNote = 'Document claimed by student; transaction complete.';
-              else if (normalizedStage === 'ready') stepNote = 'Document completed and ready for claiming at counter.';
-              else if (normalizedStage === 'for_seal') stepNote = 'Document evaluated and queued for University Dry Seal.';
-              else if (normalizedStage === 'processing') stepNote = 'Records management verified grades intact; evaluator processing for printing.';
-            }
-            return {
-              ...h,
-              timestamp: formattedNow,
-              isCurrent: true,
-              isPassed: normalizedStage === 'completed',
-              notes: stepNote,
-              actor,
-            };
-          } else {
-            return { ...h, isPassed: false, isCurrent: false };
-          }
-        });
-
-        const effectiveStatus = normalizedStage === 'completed' ? 'completed' : status;
-        const assignedStaffName = newAssignee || t.assignedTo;
-
-        return {
-          ...t,
-          status: effectiveStatus,
-          stage: normalizedStage,
-          assignedTo: assignedStaffName,
-          assignedStaff: assignedStaffName,
-          assignedEvaluator: assignedStaffName,
-          rejectionReason: status === 'rejected' ? reason || t.rejectionReason : undefined,
-          updatedAt: new Date().toISOString(),
-          actualReleaseDate: normalizedStage === 'completed' ? formattedNow : t.actualReleaseDate,
-          timelineHistory: updatedHistory,
-        };
-      })
-    );
-
-    if (selectedTicket?.id === ticketId) {
-      setSelectedTicket((prev) => {
-        if (!prev) return null;
-        const normalizedStage = stage === 'reviewed' ? 'processing' : stage;
-        const effectiveStatus = normalizedStage === 'completed' ? 'completed' : status;
-        const assignedStaffName = newAssignee || prev.assignedTo;
-        return {
-          ...prev,
-          status: effectiveStatus,
-          stage: normalizedStage,
-          assignedTo: assignedStaffName,
-          assignedStaff: assignedStaffName,
-          assignedEvaluator: assignedStaffName,
-          updatedAt: new Date().toISOString(),
-          actualReleaseDate: normalizedStage === 'completed' ? formattedNow : prev.actualReleaseDate,
-        };
-      });
-    }
-
-    // Notify user
-    const target = tickets.find((t) => t.id === ticketId);
-    if (target) {
-      const isCompleted = status === 'completed' || stage === 'completed';
-      const isReady = stage === 'ready';
-      const notifTitle =
-        isCompleted
-          ? `Request Completed: ${target.ticketNumber}`
-          : isReady
-          ? `Ready for Claiming: ${target.ticketNumber}`
-          : status === 'rejected'
-          ? `Action Needed on ${target.ticketNumber}`
-          : `Status Updated: ${target.ticketNumber}`;
-
-      const notifMsg =
-        status === 'rejected'
-          ? `Registrar requested information: "${reason || 'Please review notes'}"`
-          : isCompleted
-          ? `Your requested document has been claimed and marked Completed.`
-          : isReady
-          ? `Your requested document is ready for claiming at the School Registrar Office (Office Pick-up).`
-          : `Your request status changed to ${status.toUpperCase()} (${stage}).`;
-
-      const arrival = formatRealtimeArrival();
-      setNotifications((prev) => [
-        {
-          id: generateUniqueId('notif'),
-          title: notifTitle,
-          message: notifMsg,
-          timestamp: arrival.timestamp,
-          exactTime: arrival.exactTime,
-          dateStr: arrival.dateStr,
-          read: false,
-          ticketNumber: target.ticketNumber,
-          type: (isCompleted || isReady) ? 'release_ready' : 'status_update',
-          audience: 'student',
-          recipientStudentId: target.studentId,
-        },
-        ...prev,
-      ]);
-
-      if (isCompleted) {
-        recordCompletedRequest(
-          {
-            ...target,
-            status: 'completed',
-            stage: 'completed',
-            actualReleaseDate: formattedNow,
-            assignedTo: newAssignee || target.assignedTo,
-          },
-          reason || 'Document claimed by student; transaction complete.',
-          actor
-        );
-      }
-    }
   };
 
-  const passTicketToNextRole = (
+  const repairTicketStage = async (ticketId: string, stage: TicketStage, reason: string) =>
+    runTicketWorkflow(ticketId, { action: 'repair', targetStage: stage, notes: reason });
+
+  const passTicketToNextRole = async (
     ticketId: string,
     targetStaffName?: string,
     targetStage?: TicketStage,
@@ -1084,7 +984,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     actorName?: string
   ) => {
     const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket) return;
+    if (!ticket) throw new Error('This request is no longer available.');
 
     const actor = actorName || currentUser?.name || 'Registrar';
 
@@ -1095,7 +995,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const currentRole = currentAssigneeUser?.role || ticket.assignedRole || currentUser?.staffRole;
 
     let nextStaffName = targetStaffName;
-    let nextStage: TicketStage = targetStage || ticket.stage;
+    let nextStage: TicketStage | undefined = targetStage;
     let autoNote = customNote;
 
     if (!nextStaffName) {
@@ -1118,8 +1018,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       const nextUser = nextRole && users.find((user) => user.role === nextRole && user.status === 'active');
       if (!nextUser) {
-        console.error(`Cannot hand off request: no active ${nextRole?.replace('_', ' ') || 'staff'} account exists.`);
-        return;
+        throw new Error(`No active ${nextRole?.replace('_', ' ') || 'staff'} account exists.`);
       }
       nextStaffName = nextUser.name;
       autoNote = autoNote || `Request handed off by ${actor} to ${nextUser.name}.`;
@@ -1129,102 +1028,12 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       (user) => user.name.toLowerCase() === nextStaffName?.toLowerCase() && user.status === 'active'
     );
     if (!matchedNextUser) {
-      console.error('Cannot hand off request: select an active staff account.');
-      return;
+      throw new Error('Select an active staff account.');
     }
     const finalStaffName = matchedNextUser.name;
-    const finalRole = matchedNextUser?.role;
-
-    const now = new Date();
-    const formattedNow = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    await runTicketWorkflow(ticketId, {
+      action: 'handoff', targetStage: nextStage, assignedTo: finalStaffName, notes: autoNote,
     });
-
-    const newHistoryEvent: TimelineEvent = {
-      stage: nextStage,
-      title: `Handed Off to ${finalStaffName}`,
-      timestamp: formattedNow,
-      notes: autoNote || `Document forwarded to ${finalStaffName}.`,
-      actor,
-      isCurrent: true,
-      isPassed: false,
-    };
-
-    let nextStatus: TicketStatus = ticket.status;
-    if (nextStage === 'completed') nextStatus = 'completed';
-    else if (nextStage === 'submitted') nextStatus = 'pending';
-    else nextStatus = 'processing';
-
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t;
-        return {
-          ...t,
-          status: nextStatus,
-          stage: nextStage,
-          assignedTo: finalStaffName,
-          assignedStaff: finalStaffName,
-          assignedEvaluator: finalStaffName,
-          assignedRole: finalRole,
-          updatedAt: new Date().toISOString(),
-          actualReleaseDate: nextStage === 'completed' ? formattedNow : t.actualReleaseDate,
-          timelineHistory: [...t.timelineHistory.map((h) => ({ ...h, isCurrent: false })), newHistoryEvent],
-        };
-      })
-    );
-
-    if (selectedTicket?.id === ticketId) {
-      setSelectedTicket((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          status: nextStatus,
-          stage: nextStage,
-          assignedTo: finalStaffName,
-          assignedStaff: finalStaffName,
-          assignedEvaluator: finalStaffName,
-          assignedRole: finalRole,
-          updatedAt: new Date().toISOString(),
-          actualReleaseDate: nextStage === 'completed' ? formattedNow : prev.actualReleaseDate,
-          timelineHistory: [...prev.timelineHistory.map((h) => ({ ...h, isCurrent: false })), newHistoryEvent],
-        };
-      });
-    }
-
-    addAuditLog(
-      'DOCUMENT_FORWARDED_TO_ROLE',
-      'Ticket',
-      `Document #${ticket.ticketNumber} handed off from ${actor} to ${finalStaffName} (${finalRole || 'Staff'}). Next Stage: ${nextStage}.`,
-      'info'
-    );
-    addSystemActivity(
-      `Document #${ticket.ticketNumber} passed to ${finalStaffName}`,
-      actor,
-      'assignment',
-      ticket.ticketNumber
-    );
-
-    const arrival = formatRealtimeArrival();
-    setNotifications((prev) => [
-      {
-        id: generateUniqueId('notif'),
-        title: `Document Forwarded: #${ticket.ticketNumber}`,
-        message: `Your document has been transferred to ${finalStaffName} (${finalRole?.replace('_', ' ') || 'Staff'}) for the next processing milestone.`,
-        timestamp: arrival.timestamp,
-        exactTime: arrival.exactTime,
-        dateStr: arrival.dateStr,
-        read: false,
-        ticketNumber: ticket.ticketNumber,
-        type: 'status_update',
-        audience: 'student',
-        recipientStudentId: ticket.studentId,
-      },
-      ...prev,
-    ]);
   };
 
   const getOfficerRole = (user: AuthenticatedUser | null): 'receiver' | 'records_management' | 'evaluator' | 'registrar' | 'superadmin' | 'other' => {
@@ -1946,55 +1755,13 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     ]);
   };
 
-  const forceCloseTicket = (ticketId: string, reason: string) => {
-    const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket) return;
-
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === ticketId
-          ? {
-              ...t,
-              status: 'completed',
-              stage: 'completed',
-              internalNotes: [
-                ...t.internalNotes,
-                {
-                  id: generateUniqueId('note'),
-                  ticketId,
-                  author: currentUser?.name || 'Super Admin',
-                  authorRole: 'Super Administrator',
-                  note: `[ADMIN FORCE-CLOSE]: ${reason}`,
-                  timestamp: new Date().toLocaleString(),
-                },
-              ],
-            }
-          : t
-      )
-    );
-
-    addAuditLog('TICKET_FORCE_CLOSED', 'Ticket', `Ticket #${ticket.ticketNumber} force-closed by Super Admin. Reason: ${reason}`, 'warning');
-    addSystemActivity(`Ticket #${ticket.ticketNumber} marked Resolved by Super Admin`, currentUser?.name || 'Super Admin', 'ticket_resolved', ticket.ticketNumber);
+  const forceCloseTicket = async (ticketId: string, reason: string) => {
+    if (!window.confirm('Confirm Force Close: this Ready request will be marked Completed.')) throw new Error('Force Close was not confirmed.');
+    await runTicketWorkflow(ticketId, { action: 'force_close', notes: reason, confirmed: true });
   };
 
-  const reopenTicket = (ticketId: string) => {
-    const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket) return;
-
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === ticketId
-          ? {
-              ...t,
-              status: 'processing',
-              stage: 'processing',
-            }
-          : t
-      )
-    );
-
-    addAuditLog('TICKET_REOPENED', 'Ticket', `Ticket #${ticket.ticketNumber} reopened by Super Admin.`, 'info');
-    addSystemActivity(`Ticket #${ticket.ticketNumber} reopened for processing`, currentUser?.name || 'Super Admin', 'status_change', ticket.ticketNumber);
+  const reopenTicket = async (ticketId: string, reason: string) => {
+    await runTicketWorkflow(ticketId, { action: 'reopen', notes: reason, confirmed: true });
   };
 
   const updateTicketPrioritySuperAdmin = (ticketId: string, priority: TicketPriority) => {
@@ -2123,6 +1890,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         submitNewTicket,
         updateTicketStatus,
         passTicketToNextRole,
+        repairTicketStage,
         assignTicketStaff,
         updateTicketPriority,
         updateEstimatedDate,

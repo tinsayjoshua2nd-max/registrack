@@ -37,24 +37,24 @@ export const DocumentRequestsView: React.FC = () => {
     'Authentication requests',
   ];
 
-  const handleMarkReadyForRelease = (ticket: Ticket) => {
-    updateTicketStatus(
+  const handleMarkReadyForRelease = async (ticket: Ticket) => {
+    try { await updateTicketStatus(
       ticket.id,
       'processing',
       'ready',
       'Official dry seal and university signature validated. Ready for claiming.',
       ticket.assignedTo
-    );
+    ); } catch (error) { alert(error instanceof Error ? error.message : 'Unable to save this stage.'); }
   };
 
-  const handleMarkCompleted = (ticket: Ticket) => {
-    updateTicketStatus(
+  const handleMarkCompleted = async (ticket: Ticket) => {
+    try { await updateTicketStatus(
       ticket.id,
       'completed',
       'completed',
       'Document physically claimed at counter window.',
       ticket.assignedTo
-    );
+    ); } catch (error) { alert(error instanceof Error ? error.message : 'Unable to complete this request.'); }
   };
 
   return (
@@ -167,7 +167,8 @@ export const DocumentRequestsView: React.FC = () => {
               <div className="flex items-center gap-2">
                 {ticket.stage !== 'ready' && ticket.stage !== 'completed' && (
                   <button
-                    onClick={() => handleMarkReadyForRelease(ticket)}
+                    disabled={ticket.stage !== 'for_seal' || ticket.status === 'completed'}
+                    onClick={() => void handleMarkReadyForRelease(ticket)}
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Mark Ready for Release
@@ -175,7 +176,8 @@ export const DocumentRequestsView: React.FC = () => {
                 )}
                 {ticket.stage === 'ready' && (
                   <button
-                    onClick={() => handleMarkCompleted(ticket)}
+                    disabled={ticket.stage !== 'ready' || ticket.status === 'rejected'}
+                    onClick={() => void handleMarkCompleted(ticket)}
                     className="px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />

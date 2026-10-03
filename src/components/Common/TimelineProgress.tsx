@@ -106,7 +106,9 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
             const isCurrent = idx === currentIndex && !isFinished;
 
             // Find matching event from history if available
-            const histEvent = ticket.timelineHistory.find((h) => h.stage === s.stage);
+            const histEvent = [...(ticket.timelineHistory || [])].reverse().find(
+              h => (h.stage === 'reviewed' ? 'processing' : h.stage) === s.stage && h.timestamp !== 'Upcoming step'
+            );
             const stepTimestamp = formatStepTimestamp(histEvent?.timestamp);
 
             let stepBg = 'bg-stone-100 border-stone-300 text-stone-400';

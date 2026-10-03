@@ -3,6 +3,8 @@ import { env } from 'node:process';
 import type { NextFunction, Request, Response } from 'express';
 import { withTransaction, pool } from './database';
 import { normalizeTicketPriority } from '../src/utils/ticketQueue';
+import { projectAccounts, projectStudents } from './rolePayload';
+import { appendWorkflowEvidence, performTicketWorkflow, PROTECTED_WORKFLOW_FIELDS, WorkflowError } from './ticketWorkflow';
 import {
   createSessionToken,
   hashPassword,
@@ -476,6 +478,9 @@ function scopeResourcePayload(
 ): unknown {
   if (!Array.isArray(value)) return value;
   const records = value.filter(isObject);
+  if (key === 'users') return projectAccounts(account, records);
+  if (key === 'studentRecords') return projectStudents(account, records, [], []);
+  if ((key === 'auditLogs' || key === 'systemActivities') && account.accountRole !== 'superadmin') return [];
   if (key === 'tickets') {
     if (account.accountRole === 'student') {
       return records
@@ -681,14 +686,18 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
   ]));
 
   if (account.accountRole === 'superadmin') {
-    state.users = await loadPublicUsers();
+    state.users = projectAccounts(account, await loadPublicUsers());
+    state.studentRecords = projectStudents(account, state.studentRecords, [], []);
     state.deletedAccounts = await loadData('deletedAccounts');
     state._versions = versions;
     return state;
   }
 
   if (account.accountRole !== 'student') {
-    state.users = await loadPublicUsers();
+    const accounts = await loadPublicUsers();
+    state.users = projectAccounts(account, accounts);
+    state.auditLogs = [];
+    state.systemActivities = [];
     state.deletedAccounts = [];
     const tickets = Array.isArray(state.tickets) ? state.tickets.filter(isObject) : [];
     if (account.accountRole !== 'receiver') {
@@ -696,6 +705,7 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
       state.deletedRequestsHistory = visibleOfficerHistory(state.deletedRequestsHistory, account, tickets);
       state.completedRequestsHistory = visibleOfficerHistory(state.completedRequestsHistory, account, tickets);
     }
+    state.studentRecords = projectStudents(account, state.studentRecords, accounts, state.tickets);
     state._versions = versions;
     return state;
   }
@@ -925,7 +935,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/state/restore-backup', csrfGuard, requireSuperadmin, async (req, res, next) => {
+  app.post('/api/state/restore-backup', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
     try {
       let source: unknown = req.body?.backup ?? req.body?.data ?? req.body?.payload ?? req.body;
       if (typeof source === 'string') {
@@ -954,11 +964,33 @@ export function registerApi(app: import('express').Express): void {
       }
 
       await withTransaction(async (client) => {
+        const previousTickets = await lockResource(client, 'tickets');
         for (const key of [...BACKUP_DATA_KEYS].sort()) {
           if (restored[key] === undefined) continue;
           await lockResource(client, key);
-          await saveResource(client, key, restored[key]);
+          await saveResource(client, key, key === 'auditLogs'
+            ? mergeAppendOnlyRecords(await lockResource(client, key), restored[key]) : restored[key]);
         }
+        const previousById = new Map((Array.isArray(previousTickets) ? previousTickets.filter(isObject) : [])
+          .map(ticket => [String(ticket.id), ticket]));
+        const imported = restored.tickets as Record<string, unknown>[];
+        const evidenced: Record<string, unknown>[] = [];
+        for (const ticket of imported) {
+          const previous = previousById.get(String(ticket.id));
+          if (previous && (stableJson(previous.stage) !== stableJson(ticket.stage) ||
+            (previous.status === 'completed') !== (ticket.status === 'completed'))) {
+            evidenced.push(await appendWorkflowEvidence(client, previous, {
+              ...ticket, timelineHistory: [
+                ...(Array.isArray(previous.timelineHistory) ? previous.timelineHistory : []),
+                ...(Array.isArray(ticket.timelineHistory) ? ticket.timelineHistory : []).filter(event =>
+                  !(Array.isArray(previous.timelineHistory) ? previous.timelineHistory : []).some(old => stableJson(old) === stableJson(event))),
+              ],
+            }, req.auth!, 'backup_restore', 'Intentional Super Admin backup recovery.', {
+              lock: lockResource, save: saveResource,
+            }));
+          } else evidenced.push(ticket);
+        }
+        await saveResource(client, 'tickets', evidenced);
         const sequenceKey = 'system:ticket-sequence';
         const sequence = await lockResource(client, sequenceKey);
         const currentYear = new Date().getFullYear();
@@ -1008,11 +1040,11 @@ export function registerApi(app: import('express').Express): void {
           ticket.status === 'completed' || ticket.stage === 'completed',
         );
         if (!completedTickets.length) return 0;
-        const knownNumbers = new Set(history.map((record) => String(record.ticketNumber || '')));
         const records = completedTickets
-          .filter((ticket) => !knownNumbers.has(String(ticket.ticketNumber || '')))
           .map((ticket) => completedRecordFromTicket(ticket, auth));
-        await saveResource(client, 'completedRequestsHistory', [...records, ...history]);
+        const completedNumbers = new Set(completedTickets.map(ticket => String(ticket.ticketNumber)));
+        await saveResource(client, 'completedRequestsHistory', [...records,
+          ...history.filter(record => !completedNumbers.has(String(record.ticketNumber)))]);
         const archivedIds = new Set(completedTickets.map((ticket) => String(ticket.id)));
         await saveResource(client, 'tickets', activeTickets.filter((ticket) => !archivedIds.has(String(ticket.id))));
         return completedTickets.length;
@@ -1031,8 +1063,8 @@ export function registerApi(app: import('express').Express): void {
     try {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
-      if (auth.accountRole === 'student') {
-        return fail(res, 403, 'Student accounts can track requests but cannot submit new requests.');
+      if (auth.accountRole !== 'receiver' && auth.accountRole !== 'superadmin') {
+        return fail(res, 403, 'Only Receiver and Super Admin can submit new requests.');
       }
       if (!isObject(req.body?.ticket)) return fail(res, 400, 'A ticket object is required.');
       const result = await withTransaction((client) => createCanonicalTicket(client, req.body.ticket, auth));
@@ -1042,6 +1074,32 @@ export function registerApi(app: import('express').Express): void {
         fail(res, error.statusCode, error.message);
         return;
       }
+      next(error);
+    }
+  });
+
+  app.post('/api/tickets/:id/workflow', csrfGuard, requireAuth, async (req: RequestWithAuth, res, next) => {
+    try {
+      if (!req.auth) return fail(res, 401, 'Your session is no longer valid.');
+      if (!isObject(req.body)) return fail(res, 400, 'A workflow action is required.');
+      const ticket = await withTransaction(client => performTicketWorkflow(client, req.params.id, req.body, req.auth!, {
+        lock: lockResource, save: saveResource,
+        access: async (ticket, actor, client) => {
+          const assignee = String(ticket.assignedTo || '').trim().toLowerCase();
+          if (actor.accountRole === 'superadmin' || assignee === actor.name.trim().toLowerCase()) return true;
+          if (actor.accountRole !== 'receiver') return false;
+          const settings = await client.query<{ payload: Record<string, unknown> }>(
+            "SELECT payload FROM registrack_data WHERE key = 'systemSettings'",
+          );
+          return [SUPERADMIN_OFFICE, 'Registrar Office', 'Registrar Intake Queue', 'Unassigned',
+            String(settings.rows[0]?.payload?.officeName || '')]
+            .filter(Boolean).some(queue => queue.toLowerCase() === assignee);
+        },
+        assignment: validateTicketAssignmentUpdate, completion: completedRecordFromTicket,
+      }));
+      res.json({ ticket: scopeTicket(req.auth, ticket) });
+    } catch (error) {
+      if (error instanceof WorkflowError) return fail(res, error.statusCode, error.message);
       next(error);
     }
   });
@@ -1201,6 +1259,13 @@ export function registerApi(app: import('express').Express): void {
           return { payload: merged, version: locked.version + 1 };
         }
         if (key === 'auditLogs' || key === 'systemActivities') {
+          if (key === 'auditLogs' && Array.isArray(payload)) {
+            const storedIds = new Set((Array.isArray(stored) ? stored.filter(isObject) : []).map(record => record.id));
+            if (payload.filter(isObject).some(record => !storedIds.has(record.id) &&
+              (String(record.action || '').startsWith('WORKFLOW_') || String(record.id || '').startsWith('workflow-audit-')))) {
+              throw new ApiError(403, 'Workflow audit records are server-written only.');
+            }
+          }
           const merged = mergeAppendOnlyRecords(stored, payload);
           await saveResource(client, key, merged);
           return { payload: merged, version: locked.version + 1 };
@@ -1550,7 +1615,7 @@ function completedRecordFromTicket(
     releaseDate: String(ticket.actualReleaseDate || dateStr),
     releaseLocation: String(ticket.releaseLocation || 'Registrar Counter Window'),
     notes: String(ticket.completionNotes || ticket.notes || 'Completed request archived by the Registrar.'),
-    ticketSnapshot: { ...ticket, status: 'completed', stage: 'completed' },
+    ticketSnapshot: { ...ticket },
   };
 }
 
@@ -1896,6 +1961,11 @@ async function mergeOfficerTickets(
     }
     if (!canAccessTicket(previous, auth)) {
       throw new ApiError(403, 'You can only update tickets assigned to your account.');
+    }
+    for (const field of PROTECTED_WORKFLOW_FIELDS) {
+      if (stableJson(previous[field]) !== stableJson(incoming[field])) {
+        throw new ApiError(403, 'Workflow changes must use the server workflow endpoint.');
+      }
     }
     if (incoming.priority !== previous.priority) {
       const priority = normalizeTicketPriority(incoming.priority);

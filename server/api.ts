@@ -1083,7 +1083,19 @@ export function registerApi(app: import('express').Express): void {
       if (!req.auth) return fail(res, 401, 'Your session is no longer valid.');
       if (!isObject(req.body)) return fail(res, 400, 'A workflow action is required.');
       const ticket = await withTransaction(client => performTicketWorkflow(client, req.params.id, req.body, req.auth!, {
-        lock: lockResource, save: saveResource, access: canAccessTicket,
+        lock: lockResource, save: saveResource,
+        access: async (ticket, actor, client) => {
+          const assignee = String(ticket.assignedTo || '').trim().toLowerCase();
+          if (actor.accountRole === 'superadmin' || assignee === actor.name.trim().toLowerCase()) return true;
+          if (actor.accountRole !== 'receiver') return false;
+          const result = await client.query<{ payload: unknown }>(
+            "SELECT payload FROM registrack_data WHERE key = 'systemSettings'",
+          );
+          const settings = isObject(result.rows[0]?.payload) ? result.rows[0].payload : {};
+          return [SUPERADMIN_OFFICE, 'Registrar Office', 'Registrar Intake Queue', 'Unassigned',
+            typeof settings.officeName === 'string' ? settings.officeName : '']
+            .filter(Boolean).some(queue => queue.trim().toLowerCase() === assignee);
+        },
         assignment: validateTicketAssignmentUpdate, completion: completedRecordFromTicket,
       }));
       res.json({ ticket: scopeTicket(req.auth, ticket) });
@@ -1604,7 +1616,7 @@ function completedRecordFromTicket(
     releaseDate: String(ticket.actualReleaseDate || dateStr),
     releaseLocation: String(ticket.releaseLocation || 'Registrar Counter Window'),
     notes: String(ticket.completionNotes || ticket.notes || 'Completed request archived by the Registrar.'),
-    ticketSnapshot: { ...ticket, status: 'completed', stage: 'completed' },
+    ticketSnapshot: { ...ticket },
   };
 }
 
@@ -1944,7 +1956,9 @@ async function mergeOfficerTickets(
       String(previous.ticketNumber || '') !== String(incoming.ticketNumber || '')) {
       throw new ApiError(400, 'A ticket’s ID, request number, and student owner cannot be changed.');
     }
-    if (stableJson(previous) === stableJson(incoming)) {
+    const { updatedAt: _previousUpdatedAt, ...previousContent } = previous;
+    const { updatedAt: _incomingUpdatedAt, ...incomingContent } = incoming;
+    if (stableJson(previousContent) === stableJson(incomingContent)) {
       merged.push(previous);
       continue;
     }
@@ -1959,28 +1973,23 @@ async function mergeOfficerTickets(
     if (incoming.priority !== previous.priority) {
       const priority = normalizeTicketPriority(incoming.priority);
       if (!priority) throw new ApiError(400, 'Choose a valid request priority.');
-      incoming.priority = priority;
+      incomingContent.priority = priority;
     }
     await validateTicketAssignmentUpdate(client, previous, incoming);
     if (stableJson(previous.messages || []) !== stableJson(incoming.messages || [])) {
       throw new ApiError(403, 'Messages must be sent through POST /api/tickets/:id/messages.');
     }
 
-    const previousTime = Date.parse(String(previous.updatedAt || ''));
-    const incomingTime = Date.parse(String(incoming.updatedAt || ''));
-    const incomingIsNewer = Number.isFinite(incomingTime) &&
-      (!Number.isFinite(previousTime) || incomingTime > previousTime);
-    const winner = incomingIsNewer ||
-      (!Number.isFinite(previousTime) && !Number.isFinite(incomingTime))
-      ? incoming
-      : previous;
-    merged.push({
-      ...winner,
-      assignedStaff: winner.assignedTo,
-      assignedEvaluator: winner.assignedTo,
+    const updated = {
+      ...incomingContent,
+      assignedStaff: incoming.assignedTo,
+      assignedEvaluator: incoming.assignedTo,
       messages: Array.isArray(previous.messages) ? previous.messages : [],
       internalNotes: mergeUniqueRecords(previous.internalNotes, incoming.internalNotes),
-    });
+    };
+    merged.push(stableJson(previousContent) === stableJson(updated)
+      ? previous
+      : { ...updated, updatedAt: new Date().toISOString() });
   }
 
   for (const existing of current) {
@@ -2489,9 +2498,26 @@ function stampBrowserAuthoredRecords(
   });
   return merged.map(record => {
     if (existingIds.has(String(record.id || ''))) return record;
+    const fields = resource === 'auditLogs'
+      ? ['id', 'timestamp', 'actorName', 'actorRole', 'actorAccountId', 'action', 'category', 'details', 'ipAddress', 'severity']
+      : ['id', 'timeStr', 'timestamp', 'actor', 'actorAccountId', 'text', 'actionType', 'ticketNumber'];
+    const allowed = Object.fromEntries(fields.filter(field => record[field] !== undefined)
+      .map(field => [field, record[field]]));
+    const limits: Record<string, number> = resource === 'auditLogs'
+      ? { action: 200, category: 200, severity: 200, ipAddress: 200, details: 2000 }
+      : { text: 2000 };
+    for (const [field, maximum] of Object.entries(limits)) {
+      if (allowed[field] === undefined) continue;
+      if (typeof allowed[field] !== 'string') {
+        throw new ApiError(400, `${resource}.${field} must be a string.`);
+      }
+      if (allowed[field].length > maximum) {
+        throw new ApiError(400, `${resource}.${field} must be at most ${maximum} characters.`);
+      }
+    }
     if (resource === 'auditLogs') {
       return {
-        ...record,
+        ...allowed,
         timestamp,
         actorName: auth.name,
         actorRole: auditRoleLabel(auth.accountRole),
@@ -2499,7 +2525,7 @@ function stampBrowserAuthoredRecords(
       };
     }
     return {
-      ...record,
+      ...allowed,
       timeStr,
       timestamp,
       actor: auth.name,

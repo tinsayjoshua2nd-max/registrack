@@ -1,0 +1,50 @@
+FOLLOW-UP TO PROMPT A. Work only in server/api.ts (plus scripts/verify-workflow-api.ts for tests). Do not touch server/ticketWorkflow.ts, server/rolePayload.ts or any
+client file.
+
+1. FIX A REGRESSION YOU INTRODUCED. In POST /api/tickets/:id/workflow you replaced
+   the route's access rule with the general canAccessTicket(), which lets every
+   Receiver act on ANY ticket. That is why your own check 5 failed. Its expectation
+   of 403 is CORRECT; do not change it. Restore the previous route-specific rule:
+   allowed if the actor is Super Admin, OR the ticket's assignedTo equals the
+   actor's name (case-insensitive), OR (the actor is a receiver AND assignedTo is
+   one of SUPERADMIN_OFFICE, 'Registrar Office', 'Registrar Intake Queue',
+   'Unassigned', or the officeName in systemSettings). Do not use canAccessTicket
+   for this route and do not change canAccessTicket for other routes. Show me the diff.
+
+2. FINISH PROMPT A PART 1 (identity and time are done; whitelist and limits are not).
+   For NEW browser-submitted entries only:
+   - auditLogs: keep only id, timestamp, actorName, actorRole, actorAccountId, action,
+     category, details, ipAddress, severity. Drop anything else, including a forged
+     "actor" field.
+   - systemActivities: keep only id, timeStr, timestamp, actor, actorAccountId, text,
+     actionType, ticketNumber.
+   - Cap strings: action/category/severity/ipAddress 200 characters, details/text
+     2000. If exceeded, return 400 with a clear message.
+   Existing stored entries must stay untouched.
+
+3. DO PROMPT A PART 2 (it was NOT done). In PUT /api/state/tickets, for the non-stage
+   fields still allowed (e.g. releaseLocation, estimatedReleaseDate,
+   claimingRequirements, internalNotes): if the resource version check passed and the
+   account may access the ticket, accept the submitted change. Do not compare the
+   browser-supplied updatedAt; set updatedAt to server time when content really
+   changed. Keep every protection: stage/status/timeline fields blocked, messages only
+   through the messages endpoint, assignment validation, immutable id / ticket number
+   / student, 403 for unassigned officers, 409 on a stale resource version.
+   Reason: a change stamped with an old browser clock currently returns HTTP 200 and
+   is silently discarded, while the same edit with the current time applies.
+
+4. TEST with ZZ-TEST fixtures in a disposable database only; touch nothing existing.
+   Run the WHOLE scripts/verify-workflow-api.ts and add:
+   a) a Receiver cannot move a ticket assigned to the Evaluator; the Evaluator can
+      move their own; Super Admin can move any;
+   b) forged audit/activity entries get the real author and server time; unknown
+      fields are dropped; oversized details are rejected;
+   c) an old-clock edit now applies; a 2099-stamped edit gets no permanent priority;
+   d) two sessions saving from the same version: the second gets 409.
+   Report EVERY check (name and pass/fail) and the diff. If any check fails, stop and
+   tell me; do not weaken a test to make it pass. State explicitly which of the three
+   parts, if any, you did NOT complete.
+
+5. Tell me why ticketSnapshot in completedRecordFromTicket (~L1607) now forces status
+   and stage to 'completed'. If the approved archive behaviour does not require it,
+   revert it.

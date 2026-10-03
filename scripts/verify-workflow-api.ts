@@ -51,6 +51,8 @@ const fixtureTickets = [
   ticket('evaluator', 'evaluator'), ticket('registrar', 'registrar'),
   ticket('odd', 'receiver', 'ZZ-TEST-odd-stage'), ticket('ready', 'receiver', 'ready'),
   ticket('unrelated', 'receiver', 'processing', '90000002'),
+  { ...ticket('legacy-completed-status', 'receiver', 'ZZ-TEST-odd-stage'), status: 'completed' },
+  { ...ticket('legacy-completed-stage', 'receiver', 'completed'), status: 'pending' },
 ];
 const initial: Record<string, unknown> = {
   tickets: fixtureTickets, studentRecords: [student('90000001', 'ZZ-TEST-student'), student('90000002', 'ZZ-TEST-other_student')],
@@ -91,9 +93,21 @@ async function workflow(role: string, id: string, action: string, input: Record<
   assert.equal(result.status, expected, `ZZ-TEST ${action}: ${JSON.stringify(result.body)}`);
   return { ...result, payload, before, current };
 }
+async function saveTicketFields(role: string, id: string, changes: Record<string, unknown>, snapshot?: any) {
+  const before = snapshot || await state();
+  const current = before.tickets.find((item: any) => item.id === `ZZ-TEST-${id}`);
+  assert(current);
+  const payload = before.tickets.map((item: any) => item.id === current.id ? { ...item, ...changes } : item);
+  const result = await request(role, '/api/state/tickets', 'PUT', { payload, version: before._versions.tickets });
+  return { ...result, before, current };
+}
 let checks = 0;
 async function check(name: string, work: () => Promise<void>) {
-  await work();
+  try { await work(); }
+  catch (error) {
+    console.error(`FAIL ${name}`);
+    throw error;
+  }
   checks++;
   console.info(`PASS ${name}`);
 }
@@ -202,30 +216,39 @@ try {
     await workflow('receiver', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true }, 403);
     await workflow('superadmin', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true });
   });
-  await check('browser-submitted audit and activity entries use session actor and server time', async () => {
+  await check('workflow authorization: Receiver denied on Evaluator ticket; Evaluator and Super Admin allowed', async () => {
+    await workflow('receiver', 'evaluator', 'stage', { targetStage: 'for_seal' }, 403);
+    await workflow('evaluator', 'evaluator', 'stage', { targetStage: 'for_seal' });
+    await workflow('superadmin', 'evaluator', 'stage', { targetStage: 'ready' });
+  });
+  await check('browser audit/activity identity, server time, whitelists, and existing-row preservation', async () => {
     const current = await state();
     const oldAudit = {
       id: 'ZZ-TEST-audit-existing', timestamp: 'ZZ-TEST-original-time',
       actorName: 'ZZ-TEST-original-actor', actorRole: 'ZZ-TEST-original-role',
       action: 'ZZ-TEST-existing', category: 'System', details: 'ZZ-TEST-existing',
-      ipAddress: 'Unavailable', severity: 'info',
+      ipAddress: 'Unavailable', severity: 'info', legacyExtra: 'ZZ-TEST-preserve',
     };
     const oldActivity = {
       id: 'ZZ-TEST-activity-existing', timeStr: 'ZZ-TEST-original-time', timestamp: 'ZZ-TEST-original-time',
       actor: 'ZZ-TEST-original-actor', text: 'ZZ-TEST-existing', actionType: 'setting_updated',
+      legacyExtra: 'ZZ-TEST-preserve',
     };
-    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='auditLogs'", [JSON.stringify([oldAudit])]);
-    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='systemActivities'", [JSON.stringify([oldActivity])]);
+    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='auditLogs'", [JSON.stringify([...current.auditLogs, oldAudit])]);
+    await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='systemActivities'", [JSON.stringify([...current.systemActivities, oldActivity])]);
     const refreshed = await state();
     const audit = {
       id: 'ZZ-TEST-audit-new', timestamp: 'ZZ-TEST-forged-time', actorName: 'ZZ-TEST-forged-actor',
       actorRole: 'ZZ-TEST-forged-role', action: 'ZZ-TEST-browser-action', category: 'System',
       details: 'ZZ-TEST-browser details', ipAddress: 'Unavailable', severity: 'info',
+      actor: 'ZZ-TEST-forged-shadow-actor', actorAccountId: 'ZZ-TEST-forged-id', unknownField: 'ZZ-TEST-drop',
     };
     const activity = {
       id: 'ZZ-TEST-activity-new', timeStr: 'ZZ-TEST-forged-time', timestamp: 'ZZ-TEST-forged-time',
       actor: 'ZZ-TEST-forged-actor', text: 'ZZ-TEST-browser activity', actionType: 'setting_updated',
+      actorName: 'ZZ-TEST-forged-name', actorAccountId: 'ZZ-TEST-forged-id', unknownField: 'ZZ-TEST-drop',
     };
+    const startedAt = Date.now();
     const auditAck = await request('superadmin', '/api/state/auditLogs', 'PUT', {
       payload: [oldAudit, audit], version: refreshed._versions.auditLogs,
     });
@@ -245,8 +268,49 @@ try {
     assert.equal(savedActivity.actorAccountId, 'ZZ-TEST-superadmin');
     assert(!Number.isNaN(Date.parse(savedActivity.timestamp)));
     assert.notEqual(savedActivity.timeStr, 'ZZ-TEST-forged-time');
+    assert(Date.parse(savedAudit.timestamp) >= startedAt && Date.parse(savedAudit.timestamp) <= Date.now());
+    assert(Date.parse(savedActivity.timestamp) >= startedAt && Date.parse(savedActivity.timestamp) <= Date.now());
+    assert(savedAudit && Object.keys(savedAudit).every(key =>
+      ['id', 'timestamp', 'actorName', 'actorRole', 'actorAccountId', 'action', 'category', 'details', 'ipAddress', 'severity'].includes(key)));
+    assert(savedActivity && Object.keys(savedActivity).every(key =>
+      ['id', 'timeStr', 'timestamp', 'actor', 'actorAccountId', 'text', 'actionType', 'ticketNumber'].includes(key)));
+    assert(!('actor' in savedAudit) && !('unknownField' in savedAudit));
+    assert(!('actorName' in savedActivity) && !('unknownField' in savedActivity));
     assert.deepEqual(saved.auditLogs.find((entry: any) => entry.id === oldAudit.id), oldAudit);
     assert.deepEqual(saved.systemActivities.find((entry: any) => entry.id === oldActivity.id), oldActivity);
+  });
+  await check('new audit/activity string limits: boundaries accepted, excess rejected with 400', async () => {
+    const before = await state();
+    const audit = {
+      id: 'ZZ-TEST-audit-boundary', action: 'x'.repeat(200), category: 'x'.repeat(200),
+      severity: 'x'.repeat(200), ipAddress: 'x'.repeat(200), details: 'x'.repeat(2000),
+    };
+    for (const [field, maximum] of Object.entries({ action: 200, category: 200, severity: 200, ipAddress: 200, details: 2000 })) {
+      const response = await request('superadmin', '/api/state/auditLogs', 'PUT', {
+        version: before._versions.auditLogs, payload: [{ ...audit, [field]: 'x'.repeat(maximum + 1) }],
+      });
+      assert.equal(response.status, 400, `Oversized ${field} must be rejected`);
+      assert(response.body.error.includes(field) && response.body.error.includes(String(maximum)));
+    }
+    const activity = { id: 'ZZ-TEST-activity-boundary', actionType: 'setting_updated', text: 'x'.repeat(2000) };
+    const oversizedText = await request('superadmin', '/api/state/systemActivities', 'PUT', {
+      version: before._versions.systemActivities, payload: [{ ...activity, text: 'x'.repeat(2001) }],
+    });
+    assert.equal(oversizedText.status, 400);
+    assert(oversizedText.body.error.includes('text') && oversizedText.body.error.includes('2000'));
+    const unchanged = await state();
+    assert.deepEqual(unchanged.auditLogs, before.auditLogs);
+    assert.deepEqual(unchanged.systemActivities, before.systemActivities);
+    assert.equal((await request('receiver', '/api/state/auditLogs', 'PUT', {
+      version: before._versions.auditLogs, payload: [audit],
+    })).status, 200);
+    assert.equal((await request('receiver', '/api/state/systemActivities', 'PUT', {
+      version: before._versions.systemActivities, payload: [activity],
+    })).status, 200);
+    const saved = await state();
+    assert.equal(saved.auditLogs.find((entry: any) => entry.id === audit.id).actorName, 'ZZ-TEST-receiver');
+    assert.equal(saved.auditLogs.find((entry: any) => entry.id === audit.id).actorRole, 'Receiver / Receiving');
+    assert.equal(saved.systemActivities.find((entry: any) => entry.id === activity.id).actor, 'ZZ-TEST-receiver');
   });
   await check('non-stage ticket fields remain saveable while stage, status, and history remain blocked', async () => {
     const current = await state();
@@ -266,6 +330,69 @@ try {
     assert.equal(editable.status, 200);
     assert.equal(editable.body.payload.find((entry: any) => entry.id === original.id).priority, 'Urgent');
     assert.equal(editable.body.payload.find((entry: any) => entry.id === original.id).releaseLocation, 'ZZ-TEST-release-location');
+  });
+  await check('old-clock non-stage edits apply, including release data, requirements, and internal notes', async () => {
+    const before = await state();
+    const original = before.tickets.find((entry: any) => entry.id === 'ZZ-TEST-receiver');
+    const note = {
+      id: 'ZZ-TEST-old-clock-note', ticketId: original.id, author: 'ZZ-TEST-receiver', authorRole: 'Receiver',
+      note: 'ZZ-TEST-old-clock-note', timestamp: '1990-01-01T00:00:00.000Z',
+    };
+    const startedAt = Date.now();
+    const response = await saveTicketFields('receiver', 'receiver', {
+      updatedAt: '1990-01-01T00:00:00.000Z', releaseLocation: 'ZZ-TEST-old-clock-release',
+      estimatedReleaseDate: 'ZZ-TEST-old-clock-estimate', claimingRequirements: ['ZZ-TEST-requirement'],
+      internalNotes: [...original.internalNotes, note],
+    }, before);
+    assert.equal(response.status, 200);
+    const saved = response.body.payload.find((entry: any) => entry.id === original.id);
+    assert.equal(saved.releaseLocation, 'ZZ-TEST-old-clock-release');
+    assert.equal(saved.estimatedReleaseDate, 'ZZ-TEST-old-clock-estimate');
+    assert.deepEqual(saved.claimingRequirements, ['ZZ-TEST-requirement']);
+    assert(saved.internalNotes.some((entry: any) => entry.id === note.id));
+    assert(Date.parse(saved.updatedAt) >= startedAt && Date.parse(saved.updatedAt) <= Date.now());
+    assert.deepEqual(saved.timelineHistory, original.timelineHistory);
+    assert.equal(saved.stage, original.stage);
+    assert.equal(saved.status, original.status);
+  });
+  await check('2099 clock has no permanent priority; timestamp-only saves keep ticket time', async () => {
+    const startedAt = Date.now();
+    const future = await saveTicketFields('superadmin', 'receiver', {
+      updatedAt: '2099-01-01T00:00:00.000Z', releaseLocation: 'ZZ-TEST-future-clock-release',
+    });
+    assert.equal(future.status, 200);
+    const futureSaved = future.body.payload.find((entry: any) => entry.id === 'ZZ-TEST-receiver');
+    assert(Date.parse(futureSaved.updatedAt) >= startedAt && Date.parse(futureSaved.updatedAt) <= Date.now());
+    const subsequent = await saveTicketFields('receiver', 'receiver', {
+      updatedAt: '1990-01-01T00:00:00.000Z', releaseLocation: 'ZZ-TEST-after-future-release',
+    });
+    assert.equal(subsequent.status, 200);
+    const saved = subsequent.body.payload.find((entry: any) => entry.id === 'ZZ-TEST-receiver');
+    assert.equal(saved.releaseLocation, 'ZZ-TEST-after-future-release');
+    const timestampOnly = await saveTicketFields('receiver', 'receiver', { updatedAt: '2099-01-01T00:00:00.000Z' });
+    assert.equal(timestampOnly.status, 200);
+    assert.deepEqual(timestampOnly.body.payload.find((entry: any) => entry.id === saved.id), saved);
+  });
+  await check('non-stage saves retain officer access, immutable identity, message, and assignment guards', async () => {
+    const before = await state();
+    for (const [changes, expected] of [
+      [{ id: 'ZZ-TEST-forged-id' }, 400], [{ studentId: '90000002' }, 400],
+      [{ ticketNumber: 'ZZ-TEST-forged-number' }, 400],
+      [{ messages: [{ id: 'ZZ-TEST-forged-message', message: 'ZZ-TEST-forged' }] }, 403],
+      [{ assignedTo: 'ZZ-TEST-no-active-staff' }, 400],
+    ] as [Record<string, unknown>, number][]) {
+      assert.equal((await saveTicketFields('superadmin', 'receiver', changes, before)).status, expected);
+    }
+    assert.equal((await saveTicketFields('registrar', 'receiver', { releaseLocation: 'ZZ-TEST-forbidden' }, before)).status, 403);
+    assert.deepEqual((await state()).tickets, before.tickets);
+  });
+  await check('two sessions saving from the same resource version: second gets 409', async () => {
+    const before = await state();
+    const first = await saveTicketFields('superadmin', 'receiver', { releaseLocation: 'ZZ-TEST-first-session' }, before);
+    assert.equal(first.status, 200);
+    const second = await saveTicketFields('receiver', 'receiver', { releaseLocation: 'ZZ-TEST-second-session' }, before);
+    assert.equal(second.status, 409);
+    assert.equal((await state()).tickets.find((entry: any) => entry.id === 'ZZ-TEST-receiver').releaseLocation, 'ZZ-TEST-first-session');
   });
   await check('state-save bypass, stale updates, audit spoof and transactional rollback', async () => {
     let data = await state();
@@ -306,6 +433,13 @@ try {
     assert(!data.tickets.some((t: any) => t.id === 'ZZ-TEST-ready'));
     const completed = data.completedRequestsHistory.find((r: any) => r.ticketId === 'ZZ-TEST-ready');
     assert(completed.ticketSnapshot.timelineHistory.some((event: any) => event.action === 'reopen'));
+    for (const id of ['legacy-completed-status', 'legacy-completed-stage']) {
+      const original = fixtureTickets.find(entry => entry.id === `ZZ-TEST-${id}`)!;
+      const snapshot = data.completedRequestsHistory.find((entry: any) => entry.ticketId === original.id).ticketSnapshot;
+      assert.equal(snapshot.stage, original.stage);
+      assert.equal(snapshot.status, original.status);
+      assert(!data.tickets.some((entry: any) => entry.id === original.id));
+    }
   });
   await check('backup recovery records intentional stage changes', async () => {
     const data = await state();

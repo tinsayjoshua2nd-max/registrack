@@ -157,9 +157,12 @@ export const AdminSubmitTicketView: React.FC = () => {
 
   const handleReassignClick = () => {
     const selectedStaffObj = staffList.find((s) => s.name === assignedStaff);
-    const roleDesc = selectedStaffObj ? `(${selectedStaffObj.role})` : '';
-    setReassignToast(`Document successfully reassigned to ${assignedStaff} ${roleDesc}`);
-    setTimeout(() => setReassignToast(null), 3500);
+    if (!selectedStaffObj) {
+      setErrorMessage('Select a staff member before assigning this request.');
+      return;
+    }
+    setErrorMessage(null);
+    setReassignToast(`Will be assigned to ${selectedStaffObj.name} when you submit.`);
   };
 
   // Submission handler
@@ -183,6 +186,11 @@ export const AdminSubmitTicketView: React.FC = () => {
     // Enforce 8 numeric digits
     if (!/^\d{8}$/.test(cleanId)) {
       setErrorMessage('Student ID must be exactly 8 numeric digits.');
+      return;
+    }
+
+    if (!assignedStaff) {
+      setErrorMessage('Select a staff member before submitting this request.');
       return;
     }
 
@@ -607,17 +615,18 @@ export const AdminSubmitTicketView: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <label className="block font-bold text-stone-900 text-xs">
-                    Assign / Reassign Document To Staff:
+                    Assign to staff:
                   </label>
                   <p className="text-[11px] text-stone-600">
                     Receiver can freely reassign to Records Management, Evaluator, or Registrar Officer.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="min-w-0 w-full sm:w-auto flex items-center gap-2">
                   <select
+                    required
                     value={assignedStaff}
                     onChange={(e) => setAssignedStaff(e.target.value)}
-                    className="px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white font-semibold text-stone-900 focus:border-emerald-600 outline-none"
+                    className="min-w-0 flex-1 sm:flex-initial px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white font-semibold text-stone-900 focus:border-emerald-600 outline-none"
                   >
                     <option value="">Select staff member</option>
                     {staffList.map((s) => (
@@ -629,9 +638,10 @@ export const AdminSubmitTicketView: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleReassignClick}
+                    disabled={!assignedStaff}
                     className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 shadow-2xs"
                   >
-                    Reassign
+                    Assign to
                   </button>
                 </div>
               </div>

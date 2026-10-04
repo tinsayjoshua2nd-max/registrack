@@ -1,0 +1,43 @@
+Do these UI items one at a time. Do NOT modify any file in server/ or the workflow
+route. Change nothing else. Do not delete or rewrite existing records.
+
+1. AdminSubmitTicketView.tsx: make "Reassign" honest. It only shows a success toast
+   before any ticket exists (and a blank name if nothing is selected). Rename the
+   control "Assign to", require a selection, and word the message as a pre-submission
+   choice ("Will be assigned to X when you submit"). Fix the phone overflow: the
+   select + button row must not exceed a 390px screen (select min-w-0 flex-1).
+
+2. Navbar.tsx: the active "Application Form" tab hides its icon (icon is
+   text-emerald-700 on a bg-emerald-700 button) and uses a different active colour
+   than the other tabs. Use the same active colour as the others and let the icon
+   inherit the active text colour.
+
+3. Wording:
+   a) TrackTicketView.tsx: change "4-Stage Verification" to match the 5 steps, and
+      show "Submitted" instead of "Stage: submitted" on student ticket cards.
+   b) Super Admin Helpdesk ticket panel: show "For University Seal" instead of
+      FOR_SEAL (one shared stage-label helper).
+   c) Audit Trail display only: show human stage names inside the details text
+      (for_seal -> "For University Seal") and a readable role label ("Receiver /
+      Receiving" instead of "receiver"). Do this at display time; do not change what
+      the server stores.
+
+4. FAQ (src/data/mockData.ts): the how-to-request steps tell students to use an
+   "Application Form" and submit tickets, but students cannot (the receiver files the
+   request at the counter; students track it online). Rewrite those steps to match,
+   and remove the "Php 150.00/copy" fee line unless I confirm it is real.
+
+5. Audit Trail category chips (All Events, Auth, Tickets, Roles, System): show a
+   count on EVERY chip, e.g. "Auth (8)". Count with the same rule "All Events" uses
+   today and tell me whether it follows the search box. Note the server writes the
+   category "Ticket" for stage changes, so make sure the Tickets chip counts them.
+   If events exist with a category no chip shows, add an "Other" chip so the numbers
+   add up. Dim chips with 0 events but keep them clickable. Add an aria-label such as
+   "Auth, 8 events". Do not change what the filters do.
+
+6. Escape key: make Escape close the ticket detail modal (TicketDetailAdminModal)
+   and the new completion dialog (Cancel, never confirm), and return focus to the
+   button that opened it.
+
+Run npm run lint. Keep tests short, using ZZ-TEST records only. Report files touched
+per item. If lint fails, stop.

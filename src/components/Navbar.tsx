@@ -396,11 +396,11 @@ export const Navbar: React.FC = () => {
                   onClick={() => setAdminView('submit-ticket')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
                     adminView === 'submit-ticket'
-                      ? 'bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-500'
+                      ? 'bg-emerald-800 text-white shadow-xs'
                       : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
                   }`}
                 >
-                  <PlusCircle className="w-3.5 h-3.5 text-emerald-700" />
+                  <PlusCircle className="w-3.5 h-3.5" />
                   <span>Application Form</span>
                 </button>
               )}

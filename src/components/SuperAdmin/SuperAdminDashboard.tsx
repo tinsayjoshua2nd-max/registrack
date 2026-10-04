@@ -391,8 +391,19 @@ export const SuperAdminDashboard: React.FC = () => {
                           <p className="text-xs font-bold text-stone-900 leading-snug">
                             {act.text}
                           </p>
-                          <span className="text-[10px] text-stone-500 shrink-0 font-mono">
-                            {act.timeStr || act.timestamp}
+                          <span className="text-[10px] text-stone-500 shrink-0 font-mono text-right leading-tight">
+                            {act.timestamp && !Number.isNaN(Date.parse(act.timestamp)) ? (
+                              <>
+                                <span className="block">
+                                  {new Date(act.timestamp).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                                <span className="block">
+                                  {new Date(act.timestamp).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}
+                                </span>
+                              </>
+                            ) : (
+                              act.timeStr || act.timestamp
+                            )}
                           </span>
                         </div>
 

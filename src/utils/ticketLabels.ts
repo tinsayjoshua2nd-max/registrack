@@ -24,10 +24,14 @@ export function getTicketStageLabel(stage: string): string {
 }
 
 export function formatAuditStageDetails(details: string): string {
-  return details.replace(
+  const formattedTransition = details.replace(
     /^(Ticket\s+#[^:]+:\s*)(\(missing\)|[A-Za-z0-9_-]+)(\s*→\s*)(\(missing\)|[A-Za-z0-9_-]+)/i,
     (_match, prefix: string, fromStage: string, arrow: string, toStage: string) =>
       `${prefix}${getTicketStageLabel(fromStage)}${arrow}${getTicketStageLabel(toStage)}`,
+  );
+  return formattedTransition.replace(
+    /\b(Stage changed to )([A-Za-z0-9_-]+)\b/i,
+    (_match, prefix: string, stage: string) => `${prefix}${getTicketStageLabel(stage)}`,
   );
 }
 

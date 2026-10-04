@@ -19,6 +19,8 @@ import {
 const VISIBLE_CATEGORIES: AuditLog['category'][] = ['Auth', 'Ticket', 'Role', 'System'];
 type AuditCategoryFilter = 'all' | 'Auth' | 'Ticket' | 'Role' | 'System' | 'Other';
 
+const eventCountLabel = (count: number) => `${count} ${count === 1 ? 'event' : 'events'}`;
+
 export const AuditLogsView: React.FC = () => {
   const { auditLogs } = useHelpdesk();
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,7 +117,7 @@ export const AuditLogsView: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
           <button
             onClick={() => setCategoryFilter('all')}
-            aria-label={`All Events, ${auditLogs.length} events`}
+            aria-label={`All Events, ${eventCountLabel(auditLogs.length)}`}
             aria-pressed={categoryFilter === 'all'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               auditLogs.length === 0 ? 'opacity-50 ' : ''
@@ -127,7 +129,7 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('Auth')}
-            aria-label={`Auth, ${categoryCounts.Auth} events`}
+            aria-label={`Auth, ${eventCountLabel(categoryCounts.Auth)}`}
             aria-pressed={categoryFilter === 'Auth'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               categoryCounts.Auth === 0 ? 'opacity-50 ' : ''
@@ -139,7 +141,7 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('Ticket')}
-            aria-label={`Tickets, ${categoryCounts.Ticket} events`}
+            aria-label={`Tickets, ${eventCountLabel(categoryCounts.Ticket)}`}
             aria-pressed={categoryFilter === 'Ticket'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               categoryCounts.Ticket === 0 ? 'opacity-50 ' : ''
@@ -151,7 +153,7 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('Role')}
-            aria-label={`Roles, ${categoryCounts.Role} events`}
+            aria-label={`Roles, ${eventCountLabel(categoryCounts.Role)}`}
             aria-pressed={categoryFilter === 'Role'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               categoryCounts.Role === 0 ? 'opacity-50 ' : ''
@@ -163,7 +165,7 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('System')}
-            aria-label={`System, ${categoryCounts.System} events`}
+            aria-label={`System, ${eventCountLabel(categoryCounts.System)}`}
             aria-pressed={categoryFilter === 'System'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               categoryCounts.System === 0 ? 'opacity-50 ' : ''
@@ -175,7 +177,7 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('Other')}
-            aria-label={`Other, ${categoryCounts.Other} events`}
+            aria-label={`Other, ${eventCountLabel(categoryCounts.Other)}`}
             aria-pressed={categoryFilter === 'Other'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
               categoryCounts.Other === 0 ? 'opacity-50 ' : ''

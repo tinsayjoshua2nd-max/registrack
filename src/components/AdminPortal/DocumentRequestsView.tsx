@@ -4,6 +4,7 @@ import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { DocumentType, Ticket } from '../../types';
 import { TicketDetailAdminModal } from './TicketDetailAdminModal';
+import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import {
   FileText,
   Printer,
@@ -20,6 +21,8 @@ export const DocumentRequestsView: React.FC = () => {
   const { tickets, updateTicketStatus } = useHelpdesk();
   const [docFilter, setDocFilter] = useState<'All' | DocumentType>('All');
   const [selectedTicketForModal, setSelectedTicketForModal] = useState<Ticket | null>(null);
+  const [ticketAwaitingCompletion, setTicketAwaitingCompletion] = useState<Ticket | null>(null);
+  const [workflowSaving, setWorkflowSaving] = useState(false);
 
   // Filter only tickets that are document requests
   const documentTickets = tickets.filter((t) => {
@@ -38,23 +41,41 @@ export const DocumentRequestsView: React.FC = () => {
   ];
 
   const handleMarkReadyForRelease = async (ticket: Ticket) => {
-    try { await updateTicketStatus(
-      ticket.id,
-      'processing',
-      'ready',
-      'Official dry seal and university signature validated. Ready for claiming.',
-      ticket.assignedTo
-    ); } catch (error) { alert(error instanceof Error ? error.message : 'Unable to save this stage.'); }
+    if (workflowSaving) return;
+    setWorkflowSaving(true);
+    try {
+      await updateTicketStatus(
+        ticket.id,
+        'processing',
+        'ready',
+        'Official dry seal and university signature validated. Ready for claiming.',
+        ticket.assignedTo
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to save this stage.');
+    } finally {
+      setWorkflowSaving(false);
+    }
   };
 
   const handleMarkCompleted = async (ticket: Ticket) => {
-    try { await updateTicketStatus(
-      ticket.id,
-      'completed',
-      'completed',
-      'Document physically claimed at counter window.',
-      ticket.assignedTo
-    ); } catch (error) { alert(error instanceof Error ? error.message : 'Unable to complete this request.'); }
+    if (workflowSaving) return;
+    setWorkflowSaving(true);
+    try {
+      await updateTicketStatus(
+        ticket.id,
+        'completed',
+        'completed',
+        'Document physically claimed at counter window.',
+        ticket.assignedTo,
+        undefined,
+        true
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to complete this request.');
+    } finally {
+      setWorkflowSaving(false);
+    }
   };
 
   return (
@@ -167,7 +188,7 @@ export const DocumentRequestsView: React.FC = () => {
               <div className="flex items-center gap-2">
                 {ticket.stage !== 'ready' && ticket.stage !== 'completed' && (
                   <button
-                    disabled={ticket.stage !== 'for_seal' || ticket.status === 'completed'}
+                    disabled={workflowSaving || ticket.stage !== 'for_seal' || ticket.status === 'completed'}
                     onClick={() => void handleMarkReadyForRelease(ticket)}
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                   >
@@ -176,8 +197,8 @@ export const DocumentRequestsView: React.FC = () => {
                 )}
                 {ticket.stage === 'ready' && (
                   <button
-                    disabled={ticket.stage !== 'ready' || ticket.status === 'rejected'}
-                    onClick={() => void handleMarkCompleted(ticket)}
+                    disabled={workflowSaving || ticket.stage !== 'ready' || ticket.status === 'rejected'}
+                    onClick={() => setTicketAwaitingCompletion(ticket)}
                     className="px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -210,6 +231,16 @@ export const DocumentRequestsView: React.FC = () => {
         <TicketDetailAdminModal
           ticket={selectedTicketForModal}
           onClose={() => setSelectedTicketForModal(null)}
+        />
+      )}
+      {ticketAwaitingCompletion && (
+        <CompletionConfirmationDialog
+          onCancel={() => setTicketAwaitingCompletion(null)}
+          onConfirm={() => {
+            const ticket = ticketAwaitingCompletion;
+            setTicketAwaitingCompletion(null);
+            void handleMarkCompleted(ticket);
+          }}
         />
       )}
     </div>

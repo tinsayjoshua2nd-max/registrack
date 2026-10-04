@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketPriority, TicketStatus } from '../../types';
+import { formatDateInManila } from '../../utils/formatDate';
+import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import { TicketDetailAdminModal } from '../AdminPortal/TicketDetailAdminModal';
 import {
   Ticket as TicketIcon,
@@ -49,6 +51,8 @@ export const HelpdeskManagementView: React.FC = () => {
 
   // Force close modal
   const [forceCloseModalTicket, setForceCloseModalTicket] = useState<Ticket | null>(null);
+  const [forceCloseConfirmOpen, setForceCloseConfirmOpen] = useState(false);
+  const [forceCloseSaving, setForceCloseSaving] = useState(false);
   const [closeReason, setCloseReason] = useState<string>('');
 
   // Internal Note
@@ -141,14 +145,24 @@ export const HelpdeskManagementView: React.FC = () => {
   const handleForceCloseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forceCloseModalTicket || !closeReason.trim()) return;
+    setForceCloseConfirmOpen(true);
+  };
 
-    try { await forceCloseTicket(forceCloseModalTicket.id, closeReason.trim()); }
+  const confirmForceClose = async () => {
+    if (!forceCloseModalTicket || !closeReason.trim() || forceCloseSaving) return;
+    const ticketNumber = forceCloseModalTicket.ticketNumber;
+    setForceCloseSaving(true);
+    try { await forceCloseTicket(forceCloseModalTicket.id, closeReason.trim(), true); }
     catch (error) {
       setNotification(error instanceof Error ? error.message : 'Force Close could not be saved.');
+      setForceCloseConfirmOpen(false);
       return;
+    } finally {
+      setForceCloseSaving(false);
     }
-    setNotification(`Ticket #${forceCloseModalTicket.ticketNumber} force-closed by Super Admin.`);
+    setNotification(`Ticket #${ticketNumber} force-closed by Super Admin.`);
     setForceCloseModalTicket(null);
+    setForceCloseConfirmOpen(false);
     setCloseReason('');
     setTimeout(() => setNotification(null), 3000);
   };
@@ -378,7 +392,7 @@ export const HelpdeskManagementView: React.FC = () => {
                     {selectedTicket.ticketNumber}
                   </span>
                   <span className="text-[11px] text-stone-400">
-                    Filed: {selectedTicket.createdAt}
+                    Filed: {formatDateInManila(selectedTicket.createdAt)}
                   </span>
                 </div>
                 <h3 className="font-heading font-bold text-base text-stone-900 mt-2">
@@ -625,13 +639,18 @@ export const HelpdeskManagementView: React.FC = () => {
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">
                 <button
                   type="button"
-                  onClick={() => setForceCloseModalTicket(null)}
+                  onClick={() => {
+                    setForceCloseModalTicket(null);
+                    setForceCloseConfirmOpen(false);
+                  }}
+                  disabled={forceCloseSaving}
                   className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  disabled={forceCloseSaving}
                   className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer"
                 >
                   Execute Force Close
@@ -640,6 +659,17 @@ export const HelpdeskManagementView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {forceCloseModalTicket && forceCloseConfirmOpen && (
+        <CompletionConfirmationDialog
+          title="Confirm Force Close"
+          message="Force Close will complete this Ready request even if student pickup was not confirmed. The student will be notified that the request is complete."
+          confirmLabel="Confirm Force Close"
+          variant="rose"
+          disabled={forceCloseSaving}
+          onCancel={() => setForceCloseConfirmOpen(false)}
+          onConfirm={() => void confirmForceClose()}
+        />
       )}
 
       {/* TICKET DETAIL ADMIN MODAL FOR REGISTRAR MANAGEMENT */}

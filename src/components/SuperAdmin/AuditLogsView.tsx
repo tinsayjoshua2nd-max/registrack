@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { AuditLog } from '../../types';
+import { formatDateInManila } from '../../utils/formatDate';
 import {
   ShieldCheck,
   Search,
@@ -171,7 +172,7 @@ export const AuditLogsView: React.FC = () => {
                   return (
                     <tr key={`${log.id || 'log'}-${idx}`} className="hover:bg-stone-50/60 transition-colors">
                       <td className="py-3 px-4 font-mono text-[11px] text-stone-500 whitespace-nowrap">
-                        {log.timestamp}
+                        {formatDateInManila(log.timestamp)}
                       </td>
                       <td className="py-3 px-4">
                         <p className="font-bold text-stone-900">{log.actorName}</p>
@@ -191,7 +192,7 @@ export const AuditLogsView: React.FC = () => {
                         {log.details}
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-[10px] text-stone-400">
-                        {log.ipAddress || '192.168.1.42'}
+                        {log.ipAddress || 'Not recorded'}
                       </td>
                     </tr>
                   );

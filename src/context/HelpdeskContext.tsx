@@ -112,13 +112,15 @@ interface HelpdeskContextType {
 
   // Actions
   submitNewTicket: (data: Partial<Ticket>) => Promise<Ticket>;
+  refreshHelpdeskState: () => Promise<void>;
   updateTicketStatus: (
     ticketId: string,
     status: TicketStatus,
     stage: TicketStage,
     reason?: string,
     actor?: string,
-    newAssignee?: string
+    newAssignee?: string,
+    confirmed?: boolean
   ) => Promise<void>;
   passTicketToNextRole: (
     ticketId: string,
@@ -188,7 +190,7 @@ interface HelpdeskContextType {
   updateSystemSettings: (updates: Partial<SystemSettings>) => void;
 
   reassignTicket: (ticketId: string, newAssignee: string) => void;
-  forceCloseTicket: (ticketId: string, reason: string) => Promise<void>;
+  forceCloseTicket: (ticketId: string, reason: string, confirmed?: boolean) => Promise<void>;
   reopenTicket: (ticketId: string, reason: string) => Promise<void>;
   updateTicketPrioritySuperAdmin: (ticketId: string, priority: TicketPriority) => void;
 
@@ -962,15 +964,19 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     stage: TicketStage,
     reason?: string,
     actor: string = 'Registrar Staff',
-    newAssignee?: string
+    newAssignee?: string,
+    confirmed = false
   ) => {
-    if (stage === 'completed' && status !== 'rejected' &&
-      !window.confirm('Confirm that the document has been claimed and mark this request Completed?')) return;
-    await runTicketWorkflow(ticketId, {
+    if (stage === 'completed' && status !== 'rejected' && !confirmed) {
+      throw new Error('Confirm the document has been claimed before completing this request.');
+    }
+    const workflowInput: Record<string, unknown> = {
       action: status === 'rejected' ? 'reject' : 'stage',
       targetStage: stage === 'reviewed' ? 'processing' : stage,
-      notes: reason, assignedTo: newAssignee, confirmed: stage === 'completed',
-    });
+      notes: reason, assignedTo: newAssignee,
+    };
+    if (stage === 'completed' && status !== 'rejected') workflowInput.confirmed = true;
+    await runTicketWorkflow(ticketId, workflowInput);
   };
 
   const repairTicketStage = async (ticketId: string, stage: TicketStage, reason: string) =>
@@ -1755,8 +1761,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     ]);
   };
 
-  const forceCloseTicket = async (ticketId: string, reason: string) => {
-    if (!window.confirm('Confirm Force Close: this Ready request will be marked Completed.')) throw new Error('Force Close was not confirmed.');
+  const forceCloseTicket = async (ticketId: string, reason: string, confirmed = false) => {
+    if (!confirmed) throw new Error('Confirm Force Close before completing this request.');
     await runTicketWorkflow(ticketId, { action: 'force_close', notes: reason, confirmed: true });
   };
 
@@ -1856,6 +1862,15 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return count;
   };
 
+  const refreshHelpdeskState = async (): Promise<void> => {
+    const generation = accountGenerationRef.current;
+    const identity = accountIdentityRef.current;
+    await refreshServerState(generation);
+    if (generation !== accountGenerationRef.current || identity !== accountIdentityRef.current) {
+      throw new Error('Your session changed before the ticket could be refreshed.');
+    }
+  };
+
   return (
     <HelpdeskContext.Provider
       value={{
@@ -1888,6 +1903,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setTrackingTicketNumber,
         trackTicketByNumber,
         submitNewTicket,
+        refreshHelpdeskState,
         updateTicketStatus,
         passTicketToNextRole,
         repairTicketStage,

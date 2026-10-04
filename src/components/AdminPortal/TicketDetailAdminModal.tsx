@@ -5,6 +5,7 @@ import { Ticket, TicketStage, TicketStatus, TicketPriority } from '../../types';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { TimelineProgress } from '../Common/TimelineProgress';
+import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import {
   X,
   Lock,
@@ -34,6 +35,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
 }) => {
   const {
     tickets,
+    refreshHelpdeskState,
     updateTicketStatus,
     passTicketToNextRole,
     repairTicketStage,
@@ -59,6 +61,9 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [staffError, setStaffError] = useState('');
   const [workflowSaving, setWorkflowSaving] = useState(false);
+  const [workflowRefreshRequired, setWorkflowRefreshRequired] = useState(false);
+  const [workflowRefreshing, setWorkflowRefreshing] = useState(false);
+  const [completionAction, setCompletionAction] = useState<(() => Promise<void>) | null>(null);
   const [prioritySaving, setPrioritySaving] = useState(false);
   const [priorityError, setPriorityError] = useState('');
 
@@ -104,9 +109,33 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     }
     setWorkflowSaving(true);
     setStaffError('');
+    setWorkflowRefreshRequired(false);
     try { await action(); }
-    catch (error) { setStaffError(error instanceof Error ? error.message : 'The workflow action could not be saved.'); }
+    catch (error) {
+      setStaffError(error instanceof Error ? error.message : 'The workflow action could not be saved.');
+      setWorkflowRefreshRequired((error as Error & { status?: number }).status === 409);
+    }
     finally { setWorkflowSaving(false); }
+  };
+  const refreshWorkflow = async () => {
+    if (workflowRefreshing) return;
+    setWorkflowRefreshing(true);
+    try {
+      await refreshHelpdeskState();
+      setStaffError('');
+      setWorkflowRefreshRequired(false);
+    } catch (error) {
+      setStaffError(error instanceof Error ? error.message : 'Unable to refresh this request.');
+      setWorkflowRefreshRequired(true);
+    } finally {
+      setWorkflowRefreshing(false);
+    }
+  };
+  const confirmCompletion = () => {
+    if (!completionAction || workflowSaving) return;
+    const action = completionAction;
+    setCompletionAction(null);
+    void performWorkflow(action);
   };
 
   // Only active, real accounts can receive a handoff.
@@ -283,14 +312,20 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       ));
     } else {
       const nextStatus: TicketStatus = workflowRoleAction.nextStage === 'completed' ? 'completed' : 'processing';
-      void performWorkflow(() => updateTicketStatus(
+      const action = () => updateTicketStatus(
         ticket.id,
         nextStatus,
         workflowRoleAction.nextStage,
         undefined,
         currentUser?.name || ticket.assignedTo,
-        workflowRoleAction.nextStaff
-      ));
+        workflowRoleAction.nextStaff,
+        workflowRoleAction.nextStage === 'completed'
+      );
+      if (workflowRoleAction.nextStage === 'completed') {
+        setCompletionAction(() => action);
+      } else {
+        void performWorkflow(action);
+      }
     }
   };
 
@@ -320,7 +355,20 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     }
 
     setStaffError('');
-    void performWorkflow(() => updateTicketStatus(ticket.id, newStatus, newStage, reason || undefined, currentUser?.name || ticket.assignedTo, targetAssignee));
+    const action = () => updateTicketStatus(
+      ticket.id,
+      newStatus,
+      newStage,
+      reason || undefined,
+      currentUser?.name || ticket.assignedTo,
+      targetAssignee,
+      newStage === 'completed'
+    );
+    if (newStage === 'completed') {
+      setCompletionAction(() => action);
+    } else {
+      void performWorkflow(action);
+    }
   };
 
   const handleConfirmCancel = () => {
@@ -367,6 +415,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl w-full max-w-4xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Top Header */}
@@ -624,9 +673,19 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                 </div>
 
                 {(staffError || requiredStaffError) && (
-                  <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
+                  <div role="alert" className="flex items-start justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{staffError || requiredStaffError}</span>
+                    {staffError && workflowRefreshRequired && (
+                      <button
+                        type="button"
+                        onClick={() => void refreshWorkflow()}
+                        disabled={workflowRefreshing}
+                        className="shrink-0 rounded-lg border border-amber-400 bg-white px-2.5 py-1 font-bold hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {workflowRefreshing ? 'Refreshing…' : 'Refresh'}
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -998,5 +1057,13 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
         </div>
       )}
     </div>
+    {completionAction && (
+      <CompletionConfirmationDialog
+        onCancel={() => setCompletionAction(null)}
+        onConfirm={confirmCompletion}
+        disabled={workflowSaving}
+      />
+    )}
+    </>
   );
 };

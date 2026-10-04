@@ -141,7 +141,7 @@ export const TrackTicketView: React.FC = () => {
                     {t.documentType !== 'None' ? t.documentType : t.category}
                   </p>
                   <div className="flex items-center justify-between text-[10px] text-stone-500 mt-2 pt-2 border-t border-stone-200/60">
-                    <span>Est: {t.estimatedReleaseDate.split(',')[0]}</span>
+                    <span>Est: {t.estimatedReleaseDate?.trim() ? t.estimatedReleaseDate.split(',')[0] : 'To be announced'}</span>
                     <span className="font-medium text-emerald-700 font-mono">Stage: {t.stage}</span>
                   </div>
                 </button>

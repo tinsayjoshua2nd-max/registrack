@@ -149,7 +149,7 @@ export const RegistrarChatView: React.FC = () => {
 
                 <div className="text-left sm:text-right text-xs text-stone-500">
                   <p>Estimated Release:</p>
-                  <p className="font-semibold text-stone-800">{selectedTicket.estimatedReleaseDate}</p>
+                  <p className="font-semibold text-stone-800">{selectedTicket.estimatedReleaseDate?.trim() || 'To be announced'}</p>
                 </div>
               </div>
 

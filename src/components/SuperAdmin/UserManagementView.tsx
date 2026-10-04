@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { UserAccount, AccountRoleType, AccountStatus } from '../../types';
+import { formatDateInManila } from '../../utils/formatDate';
 import {
   Users,
   UserPlus,
@@ -368,7 +369,7 @@ export const UserManagementView: React.FC = () => {
 
                       {/* Last Active */}
                       <td className="py-3 px-4 text-stone-500 text-[11px] font-mono">
-                        {u.lastLogin}
+                        {formatDateInManila(u.lastLogin)}
                       </td>
 
                       {/* Actions */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { normalizeTicketPriority } from '../../utils/ticketQueue';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketStage, TicketStatus, TicketPriority } from '../../types';
@@ -66,6 +66,25 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [completionAction, setCompletionAction] = useState<(() => Promise<void>) | null>(null);
   const [prioritySaving, setPrioritySaving] = useState(false);
   const [priorityError, setPriorityError] = useState('');
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="alertdialog"]')) return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
 
   useEffect(() => {
     if (!freshTicket) onClose();

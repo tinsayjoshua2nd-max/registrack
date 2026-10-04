@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketPriority, TicketStatus } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
+import { getTicketStageLabel } from '../../utils/ticketLabels';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import { TicketDetailAdminModal } from '../AdminPortal/TicketDetailAdminModal';
 import {
@@ -414,7 +415,7 @@ export const HelpdeskManagementView: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-xl bg-stone-50">
                   <span className="text-stone-400 block text-[10px] font-bold uppercase">Current Stage</span>
-                  <span className="font-bold text-emerald-800 mt-0.5 block uppercase">{selectedTicket.stage}</span>
+                    <span className="font-bold text-emerald-800 mt-0.5 block">{getTicketStageLabel(selectedTicket.stage)}</span>
                 </div>
               </div>
 

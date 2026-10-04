@@ -625,7 +625,11 @@ export const AdminSubmitTicketView: React.FC = () => {
                   <select
                     required
                     value={assignedStaff}
-                    onChange={(e) => setAssignedStaff(e.target.value)}
+                    onChange={(e) => {
+                      setAssignedStaff(e.target.value);
+                      setReassignToast(null);
+                      setErrorMessage(null);
+                    }}
                     className="min-w-0 flex-1 sm:flex-initial px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white font-semibold text-stone-900 focus:border-emerald-600 outline-none"
                   >
                     <option value="">Select staff member</option>

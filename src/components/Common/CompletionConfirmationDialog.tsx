@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 
 interface CompletionConfirmationDialogProps {
   onCancel: () => void;
@@ -19,6 +19,50 @@ export const CompletionConfirmationDialog: React.FC<CompletionConfirmationDialog
   confirmLabel = 'Confirm completion',
   variant = 'emerald',
 }) => (
+  <CompletionConfirmationDialogContent
+    onCancel={onCancel}
+    onConfirm={onConfirm}
+    disabled={disabled}
+    title={title}
+    message={message}
+    confirmLabel={confirmLabel}
+    variant={variant}
+  />
+);
+
+const CompletionConfirmationDialogContent: React.FC<CompletionConfirmationDialogProps> = ({
+  onCancel,
+  onConfirm,
+  disabled = false,
+  title = 'Confirm request completion',
+  message = 'Confirm the document has been claimed. The student will be notified that the request is complete.',
+  confirmLabel = 'Confirm completion',
+  variant = 'emerald',
+}) => {
+  const openerRef = useRef<HTMLElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+
+  useLayoutEffect(() => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    cancelButtonRef.current?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onCancelRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      if (openerRef.current?.isConnected) openerRef.current.focus();
+    };
+  }, []);
+
+  return (
   <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-xs">
     <section
       role="alertdialog"
@@ -38,7 +82,7 @@ export const CompletionConfirmationDialog: React.FC<CompletionConfirmationDialog
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          autoFocus
+          ref={cancelButtonRef}
           disabled={disabled}
           onClick={onCancel}
           className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
@@ -58,4 +102,5 @@ export const CompletionConfirmationDialog: React.FC<CompletionConfirmationDialog
       </div>
     </section>
   </div>
-);
+  );
+};

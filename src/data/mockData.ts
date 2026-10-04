@@ -5,21 +5,18 @@ export const INITIAL_FAQS: FAQItem[] = [
     id: 'faq-1',
     question: 'How do I request my Transcript of Records (TOR)?',
     answer:
-      'You can request your official TOR directly through this online helpdesk without lining up at the registrar office. Submit a ticket under the "Transcript of Records" category, specify the number of copies and intended purpose (e.g. employment, board exam, scholarship), and choose your delivery mode. Once approved, the system generates an estimated release date and notifies you when it is ready for release.',
+      'Ask the Registrar’s Receiving staff to file your TOR request at the counter. Keep the tracking number they provide, then use Track Request in this online helpdesk to follow its progress.',
     category: 'Document Requests',
     relatedCategory: 'Transcript of Records',
     turnaroundTime: '3 to 5 working days',
     requirements: [
       'Cleared university clearance status',
       'Valid student or alumni identification',
-      'Settled documentary stamp fee (Php 150.00/copy)',
     ],
     steps: [
-      'Click "Application Form" on the top navigation.',
-      'Select "Transcript of Records" as category and pick document type "TOR".',
-      'Specify number of copies and purpose.',
-      'Submit to receive your unique tracking number (e.g., REG-2026-00125).',
-      'Monitor real-time progress on "Track Request" until "Ready for Release".',
+      'Ask the Registrar’s Receiving staff to file the request at the counter.',
+      'Keep the tracking number provided by the staff.',
+      'Enter it in Track Request in the online helpdesk to follow progress.',
     ],
   },
   {

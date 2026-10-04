@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { AuditLog } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
+import { formatAuditStageDetails, getAuditRoleLabel } from '../../utils/ticketLabels';
 import {
   ShieldCheck,
   Search,
@@ -15,13 +16,28 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 
+const VISIBLE_CATEGORIES: AuditLog['category'][] = ['Auth', 'Ticket', 'Role', 'System'];
+type AuditCategoryFilter = 'all' | 'Auth' | 'Ticket' | 'Role' | 'System' | 'Other';
+
 export const AuditLogsView: React.FC = () => {
   const { auditLogs } = useHelpdesk();
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | AuditLog['category']>('all');
+  const [categoryFilter, setCategoryFilter] = useState<AuditCategoryFilter>('all');
+
+  const categoryCounts = {
+    Auth: auditLogs.filter((log) => log.category === 'Auth').length,
+    Ticket: auditLogs.filter((log) => log.category === 'Ticket').length,
+    Role: auditLogs.filter((log) => log.category === 'Role').length,
+    System: auditLogs.filter((log) => log.category === 'System').length,
+    Other: auditLogs.filter((log) => !VISIBLE_CATEGORIES.includes(log.category)).length,
+  };
 
   const filteredLogs = auditLogs.filter((log) => {
-    if (categoryFilter !== 'all' && log.category !== categoryFilter) return false;
+    if (categoryFilter === 'Other') {
+      if (VISIBLE_CATEGORIES.includes(log.category)) return false;
+    } else if (categoryFilter !== 'all' && log.category !== categoryFilter) {
+      return false;
+    }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       const matchAction = log.action.toLowerCase().includes(q);
@@ -99,7 +115,11 @@ export const AuditLogsView: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
           <button
             onClick={() => setCategoryFilter('all')}
+            aria-label={`All Events, ${auditLogs.length} events`}
+            aria-pressed={categoryFilter === 'all'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              auditLogs.length === 0 ? 'opacity-50 ' : ''
+            }${
               categoryFilter === 'all' ? 'bg-stone-900 text-white shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -107,35 +127,63 @@ export const AuditLogsView: React.FC = () => {
           </button>
           <button
             onClick={() => setCategoryFilter('Auth')}
+            aria-label={`Auth, ${categoryCounts.Auth} events`}
+            aria-pressed={categoryFilter === 'Auth'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              categoryCounts.Auth === 0 ? 'opacity-50 ' : ''
+            }${
               categoryFilter === 'Auth' ? 'bg-emerald-800 text-white font-bold shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
             }`}
           >
-            Auth
+            Auth ({categoryCounts.Auth})
           </button>
           <button
             onClick={() => setCategoryFilter('Ticket')}
+            aria-label={`Tickets, ${categoryCounts.Ticket} events`}
+            aria-pressed={categoryFilter === 'Ticket'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              categoryCounts.Ticket === 0 ? 'opacity-50 ' : ''
+            }${
               categoryFilter === 'Ticket' ? 'bg-emerald-800 text-white font-bold shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
             }`}
           >
-            Tickets
+            Tickets ({categoryCounts.Ticket})
           </button>
           <button
             onClick={() => setCategoryFilter('Role')}
+            aria-label={`Roles, ${categoryCounts.Role} events`}
+            aria-pressed={categoryFilter === 'Role'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              categoryCounts.Role === 0 ? 'opacity-50 ' : ''
+            }${
               categoryFilter === 'Role' ? 'bg-emerald-800 text-white font-bold shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
             }`}
           >
-            Roles
+            Roles ({categoryCounts.Role})
           </button>
           <button
             onClick={() => setCategoryFilter('System')}
+            aria-label={`System, ${categoryCounts.System} events`}
+            aria-pressed={categoryFilter === 'System'}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              categoryCounts.System === 0 ? 'opacity-50 ' : ''
+            }${
               categoryFilter === 'System' ? 'bg-emerald-800 text-white font-bold shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
             }`}
           >
-            System
+            System ({categoryCounts.System})
+          </button>
+          <button
+            onClick={() => setCategoryFilter('Other')}
+            aria-label={`Other, ${categoryCounts.Other} events`}
+            aria-pressed={categoryFilter === 'Other'}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+              categoryCounts.Other === 0 ? 'opacity-50 ' : ''
+            }${
+              categoryFilter === 'Other' ? 'bg-emerald-800 text-white font-bold shadow-2xs' : 'bg-stone-100 text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            Other ({categoryCounts.Other})
           </button>
         </div>
       </div>
@@ -176,7 +224,7 @@ export const AuditLogsView: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <p className="font-bold text-stone-900">{log.actorName}</p>
-                        <p className="text-[10px] text-stone-400">{log.actorRole}</p>
+                        <p className="text-[10px] text-stone-400">{getAuditRoleLabel(log.actorRole)}</p>
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-[11px] font-semibold text-stone-600 bg-stone-100 px-2 py-0.5 rounded">
@@ -189,7 +237,7 @@ export const AuditLogsView: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-stone-700 leading-relaxed max-w-md">
-                        {log.details}
+                        {formatAuditStageDetails(log.details)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-[10px] text-stone-400">
                         {log.ipAddress || 'Not recorded'}

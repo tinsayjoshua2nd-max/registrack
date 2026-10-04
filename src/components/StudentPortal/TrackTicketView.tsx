@@ -3,6 +3,7 @@ import { useHelpdesk } from '../../context/HelpdeskContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { TimelineProgress } from '../Common/TimelineProgress';
+import { getTicketStageLabel } from '../../utils/ticketLabels';
 import {
   Search,
   Copy,
@@ -123,6 +124,7 @@ export const TrackTicketView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {studentTickets.map((t) => {
               const isSelected = activeTicket?.id === t.id;
+              const stageLabel = getTicketStageLabel(t.stage);
               return (
                 <button
                   key={t.id}
@@ -142,7 +144,9 @@ export const TrackTicketView: React.FC = () => {
                   </p>
                   <div className="flex items-center justify-between text-[10px] text-stone-500 mt-2 pt-2 border-t border-stone-200/60">
                     <span>Est: {t.estimatedReleaseDate?.trim() ? t.estimatedReleaseDate.split(',')[0] : 'To be announced'}</span>
-                    <span className="font-medium text-emerald-700 font-mono">Stage: {t.stage}</span>
+                    <span className="font-medium text-emerald-700 font-mono">
+                      {t.stage.toLowerCase() === 'submitted' ? stageLabel : `Stage: ${stageLabel}`}
+                    </span>
                   </div>
                 </button>
               );
@@ -261,7 +265,7 @@ export const TrackTicketView: React.FC = () => {
                 <h3 className="font-heading font-bold text-sm text-stone-900 uppercase tracking-wider text-xs">
                   Request Processing Timeline
                 </h3>
-                <span className="text-xs text-stone-400 font-medium">4-Stage Verification</span>
+                <span className="text-xs text-stone-400 font-medium">5-Stage Verification</span>
               </div>
               <TimelineProgress ticket={activeTicket} />
             </div>

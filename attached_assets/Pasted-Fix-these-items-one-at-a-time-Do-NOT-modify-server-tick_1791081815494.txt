@@ -1,0 +1,38 @@
+Fix these items one at a time. Do NOT modify server/ticketWorkflow.ts,
+server/rolePayload.ts or the POST /api/tickets/:id/workflow route. If an item seems
+to need them, stop and tell me. Do not delete or rewrite existing records.
+
+1. REAL CONFIRMATION BEFORE "COMPLETED". HelpdeskContext.tsx sends
+   `confirmed: stage === 'completed'` automatically (~L972), so the Direct Stage
+   button and the guided "mark completed" button complete a ticket without asking.
+   Add one in-app confirmation dialog (not window.confirm) before any action that
+   completes a ticket: "Confirm the document has been claimed. The student will be
+   notified that the request is complete." Send confirmed: true only after the
+   person confirms. Keep the existing reason prompt for backward moves.
+
+2. SHOW ERRORS. When the workflow route returns 400/403/409 (e.g. "This request
+   changed. Refresh it before taking another action."), show the server's message
+   inside the ticket window instead of failing silently, with a Refresh action for
+   409. First tell me what happens today. Disable the stage buttons while a change
+   is saving.
+
+3. BLANK RELEASE INFO. server/api.ts ~L2156-2157 creates tickets with
+   estimatedReleaseDate '' and releaseLocation ''. Students see blank "Est:" and
+   "Estimated Release:". Display "To be announced" in TrackTicketView.tsx and
+   RegistrarChatView.tsx when empty. Do not change stored records.
+
+4. TIMELINE. In src/components/Common/TimelineProgress.tsx change exactly one line.
+   Find:    const stepTimestamp = formatStepTimestamp(histEvent?.timestamp);
+   Replace: const stepTimestamp = idx <= currentIndex ? formatStepTimestamp(histEvent?.timestamp) : null;
+
+5. FAKE IP. src/components/SuperAdmin/AuditLogsView.tsx (~L194) shows
+   `log.ipAddress || '192.168.1.42'`, a made-up address for any entry with no IP.
+   Replace the fallback with 'Not recorded'. Do not invent addresses anywhere.
+
+6. ONLY IF STEPS 1-5 ARE DONE: one small date helper (e.g. src/utils/formatDate.ts,
+   timeZone 'Asia/Manila') used in just three places: "Last Active" in User
+   Management, the timestamp column of the Audit Trail, and "Filed:" in the Super
+   Admin Helpdesk ticket panel. Keep old pre-formatted values working.
+
+Run npm run lint. Keep tests short and API-level, using ZZ-TEST records only. Report
+files touched per item. If lint fails, stop.

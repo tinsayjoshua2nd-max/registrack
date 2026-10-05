@@ -36,8 +36,7 @@ export const SuperAdminDashboard: React.FC = () => {
     return act.actionType === activityFilter;
   });
 
-  const staffRoles = ['receiver', 'records_management', 'evaluator', 'staff', 'admin', 'registrar'];
-  const totalStaffAdmins = users.filter((u) => staffRoles.includes(u.role)).length;
+  const totalStaffAdmins = users.filter((u) => u.role !== 'student').length;
   const resolvedCount = tickets.filter((t) => t.status === 'completed').length;
   const activeUsersCount = users.filter((u) => u.status === 'active').length;
   const deletedCount = getMyDeletedRequests().length;
@@ -121,7 +120,7 @@ export const SuperAdminDashboard: React.FC = () => {
             {totalStaffAdmins}
           </p>
           <p className="text-xs font-semibold text-stone-500 mt-0.5">Staff & Admins</p>
-          <span className="text-[10px] text-stone-500">Registered staff accounts</span>
+          <span className="text-[10px] text-stone-500">All non-student accounts</span>
         </div>
 
         {/* Total Helpdesk Tickets */}
@@ -178,14 +177,13 @@ export const SuperAdminDashboard: React.FC = () => {
           className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs hover:border-emerald-300 hover:shadow-sm transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-stone-400 group-hover:text-emerald-700">
-            <Activity className="w-4 h-4 text-emerald-600 animate-pulse" />
-            <span className="text-[10px] font-mono font-bold text-emerald-700">LIVE</span>
+            <Activity className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-heading font-black text-stone-900 mt-2">
             {activeUsersCount}
           </p>
-          <p className="text-xs font-semibold text-stone-500 mt-0.5">Active Users</p>
-          <span className="text-[10px] text-stone-500">Currently registered</span>
+          <p className="text-xs font-semibold text-stone-500 mt-0.5">Active Accounts</p>
+          <span className="text-[10px] text-stone-500">Registered accounts marked active</span>
         </div>
       </div>
 

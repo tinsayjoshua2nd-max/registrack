@@ -85,14 +85,18 @@ export const SystemSettingsView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
-                  Institutional Code
+                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
+                  <span>Institutional Code</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={settings.schoolCode}
+                  disabled
                   onChange={(e) => setSettings({ ...settings, schoolCode: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
                 />
               </div>
 
@@ -123,26 +127,34 @@ export const SystemSettingsView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
-                  Academic Year
+                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
+                  <span>Academic Year</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={settings.academicYear}
+                  disabled
                   onChange={(e) => setSettings({ ...settings, academicYear: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
-                  Semester / Term
+                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
+                  <span>Semester / Term</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={settings.semester}
+                  disabled
                   onChange={(e) => setSettings({ ...settings, semester: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
                 />
               </div>
             </div>
@@ -161,7 +173,7 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <p className="font-bold text-stone-900">Auto-Assignment Algorithm</p>
                 <p className="text-[11px] text-stone-500">
-                  Automatically allocate incoming tickets evenly among active registrars.
+                  Automatically assign new tickets to the first eligible active staff member by role priority; workload is not balanced.
                 </p>
               </div>
               <input
@@ -173,16 +185,20 @@ export const SystemSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-bold text-stone-700 mb-1">
-                Max Pending Tickets Per Evaluator
+              <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
+                <span>Max Pending Tickets Per Evaluator</span>
+                <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                  Not connected yet
+                </span>
               </label>
               <input
                 type="number"
                 min={1}
                 max={50}
                 value={settings.maxPendingTicketsPerStaff}
+                disabled
                 onChange={(e) => setSettings({ ...settings, maxPendingTicketsPerStaff: Number(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
+                className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
               />
               <p className="text-[10px] text-stone-500 mt-1">
                 Prevents staff burnout; additional tickets queue in central pending pool.
@@ -191,7 +207,12 @@ export const SystemSettingsView: React.FC = () => {
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
               <div>
-                <p className="font-bold text-stone-900">Open Student Self-Registration</p>
+                <p className="flex flex-wrap items-center gap-2 font-bold text-stone-900">
+                  <span>Open Student Self-Registration</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
+                </p>
                 <p className="text-[11px] text-stone-500">
                   Allow students to register with valid 8-digit IDs on login screen.
                 </p>
@@ -199,8 +220,9 @@ export const SystemSettingsView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.allowStudentRegistration}
+                disabled
                 onChange={(e) => setSettings({ ...settings, allowStudentRegistration: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700 cursor-pointer"
+                className="w-4 h-4 accent-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>
@@ -216,7 +238,12 @@ export const SystemSettingsView: React.FC = () => {
           <div className="space-y-3 text-xs">
             <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
               <div>
-                <p className="font-bold text-stone-900">Email Notifications</p>
+                <p className="flex flex-wrap items-center gap-2 font-bold text-stone-900">
+                  <span>Email Notifications</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
+                </p>
                 <p className="text-[11px] text-stone-500">
                   Send email notifications when tickets are reviewed, ready, or resolved.
                 </p>
@@ -224,14 +251,20 @@ export const SystemSettingsView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.emailNotificationsEnabled}
+                disabled
                 onChange={(e) => setSettings({ ...settings, emailNotificationsEnabled: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700 cursor-pointer"
+                className="w-4 h-4 accent-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
               <div>
-                <p className="font-bold text-stone-900">SMS Gateway Dispatch</p>
+                <p className="flex flex-wrap items-center gap-2 font-bold text-stone-900">
+                  <span>SMS Gateway Dispatch</span>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                    Not connected yet
+                  </span>
+                </p>
                 <p className="text-[11px] text-stone-500">
                   Dispatch SMS notifications for urgent document releases and counter pickup ready alerts.
                 </p>
@@ -239,8 +272,9 @@ export const SystemSettingsView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.smsAlertsEnabled}
+                disabled
                 onChange={(e) => setSettings({ ...settings, smsAlertsEnabled: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700 cursor-pointer"
+                className="w-4 h-4 accent-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>

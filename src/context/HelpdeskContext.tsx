@@ -129,7 +129,7 @@ interface HelpdeskContextType {
     customNote?: string,
     actorName?: string
   ) => Promise<void>;
-  assignTicketStaff: (ticketId: string, staffName: string) => void;
+  assignTicketStaff: (ticketId: string, staffName: string) => Promise<void>;
   updateTicketPriority: (ticketId: string, priority: TicketPriority) => Promise<void>;
   updateEstimatedDate: (ticketId: string, newDate: string) => void;
   addInternalNote: (ticketId: string, noteText: string, author?: string) => void;
@@ -189,7 +189,7 @@ interface HelpdeskContextType {
   systemSettings: SystemSettings;
   updateSystemSettings: (updates: Partial<SystemSettings>) => void;
 
-  reassignTicket: (ticketId: string, newAssignee: string) => void;
+  reassignTicket: (ticketId: string, newAssignee: string) => Promise<void>;
   forceCloseTicket: (ticketId: string, reason: string, confirmed?: boolean) => Promise<void>;
   reopenTicket: (ticketId: string, reason: string) => Promise<void>;
   updateTicketPrioritySuperAdmin: (ticketId: string, priority: TicketPriority) => void;
@@ -1259,17 +1259,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const assignTicketStaff = (ticketId: string, staffName: string) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t;
-        return {
-          ...t,
-          assignedTo: staffName,
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
+  const assignTicketStaff = async (ticketId: string, staffName: string): Promise<void> => {
+    await runTicketWorkflow(ticketId, { action: 'handoff', assignedTo: staffName, notes: 'Reassigned by Super Admin' });
   };
 
   const updateTicketPriority = async (ticketId: string, priority: TicketPriority): Promise<void> => {
@@ -1666,99 +1657,16 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSystemSettings((prev) => ({ ...prev, ...updates }));
   };
 
-  const reassignTicket = (ticketId: string, newAssignee: string) => {
-    const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket) return;
-
-    // Resolve matching staff from users
+  const reassignTicket = async (ticketId: string, newAssignee: string): Promise<void> => {
     const matchedStaff = users.find(
-      (u) =>
-        u.name === newAssignee ||
-        newAssignee.startsWith(u.name) ||
-        u.name.toLowerCase() === newAssignee.toLowerCase()
+      (u) => u.name === newAssignee || u.name.toLowerCase() === newAssignee.trim().toLowerCase()
     );
-    const staffName = matchedStaff ? matchedStaff.name : newAssignee;
-    const staffRole = matchedStaff?.role;
-
-    const now = new Date();
-    const formattedNow = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    // The server writes the history entry, audit log and student notification for a handoff.
+    await runTicketWorkflow(ticketId, {
+      action: 'handoff',
+      assignedTo: matchedStaff ? matchedStaff.name : newAssignee,
+      notes: 'Reassigned by Super Admin',
     });
-
-    const newTimelineEvent: TimelineEvent = {
-      stage: ticket.stage,
-      title: 'Staff Reassignment',
-      timestamp: formattedNow,
-      notes: `Ticket reassigned to ${staffName} by Super Admin (${currentUser?.name || 'Super Admin'}).`,
-      actor: currentUser?.name || 'Super Admin',
-      isCurrent: true,
-      isPassed: false,
-    };
-
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t;
-        return {
-          ...t,
-          assignedTo: staffName,
-          assignedStaff: staffName,
-          assignedEvaluator: staffName,
-          assignedRole: staffRole,
-          updatedAt: new Date().toISOString(),
-          timelineHistory: [...t.timelineHistory.map((h) => ({ ...h, isCurrent: false })), newTimelineEvent],
-        };
-      })
-    );
-
-    if (selectedTicket?.id === ticketId) {
-      setSelectedTicket((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          assignedTo: staffName,
-          assignedStaff: staffName,
-          assignedEvaluator: staffName,
-          assignedRole: staffRole,
-          updatedAt: new Date().toISOString(),
-          timelineHistory: [...prev.timelineHistory.map((h) => ({ ...h, isCurrent: false })), newTimelineEvent],
-        };
-      });
-    }
-
-    addAuditLog(
-      'TICKET_REASSIGNED',
-      'Ticket',
-      `Ticket #${ticket.ticketNumber} reassigned to ${staffName} (${staffRole || 'Staff'}) by Super Admin.`,
-      'info'
-    );
-    addSystemActivity(
-      `Ticket #${ticket.ticketNumber} reassigned to ${staffName}`,
-      currentUser?.name || 'Super Admin',
-      'assignment',
-      ticket.ticketNumber
-    );
-
-    const arrival = formatRealtimeArrival();
-    setNotifications((prev) => [
-      {
-        id: generateUniqueId('notif'),
-        title: `Ticket Reassigned: #${ticket.ticketNumber}`,
-        message: `Super Admin reassigned ticket #${ticket.ticketNumber} to ${staffName}.`,
-        timestamp: arrival.timestamp,
-        exactTime: arrival.exactTime,
-        dateStr: arrival.dateStr,
-        read: false,
-        ticketNumber: ticket.ticketNumber,
-        type: 'status_update',
-        audience: 'student',
-        recipientStudentId: ticket.studentId,
-      },
-      ...prev,
-    ]);
   };
 
   const forceCloseTicket = async (ticketId: string, reason: string, confirmed = false) => {

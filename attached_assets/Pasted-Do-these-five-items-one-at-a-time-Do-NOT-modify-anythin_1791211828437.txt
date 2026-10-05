@@ -1,0 +1,46 @@
+Do these five items one at a time. Do NOT modify anything in server/.
+Do not delete or rewrite existing records.
+
+1. REJECTED TICKETS: TicketDetailAdminModal.tsx ~L651 prints "Current Milestone:" from
+   the stage only. When ticket.status === 'rejected', show "Current Milestone: NEEDS
+   INFORMATION (held at <stage label>)" followed by the rejection reason, or "Waiting
+   for the student's response" if none. Do not show the workflowRoleAction description
+   for a rejected ticket (it currently says the student presented the claim stub). In
+   the Super Admin Helpdesk ticket panel, make "CURRENT STAGE" show the same for a
+   rejected ticket. Use the shared label helper in src/utils/ticketLabels.ts.
+
+2. COMPLETED TICKETS: the "Needs Information / Reject" button (TicketDetailAdminModal.tsx
+   ~L870, currently disabled when isCompleted) must NOT RENDER when the ticket is
+   completed (stage or status). Hide the reject form too. The same modal is used by
+   all staff roles and by Super Admin "Manage"; check HelpdeskManagementView.tsx for
+   any other reject control and hide it the same way. The server already refuses
+   this, so change only the UI.
+
+3. WRONG LABEL: src/components/Common/TimelineProgress.tsx ~L220 hardcodes "Assigned
+   Evaluator:" for any assigned staff. Change it to "Assigned Staff:".
+
+4. SUPER ADMIN REASSIGN IS BROKEN. reassignTicket in HelpdeskContext.tsx (~L1669) saves
+   through PUT /api/state/tickets while adding a timelineHistory entry. The server
+   returns 403 ("Workflow changes must use the server workflow endpoint") but the
+   function has already updated the screen and written the audit entry, activity and
+   student notification. The ticket never changes owner.
+   Fix: make reassignTicket call the existing runTicketWorkflow with
+   { action: 'handoff', assignedTo: <staff name>, notes: 'Reassigned by Super Admin' }
+   (the route supports this for Super Admin, keeps the stage, updates assignedRole and
+   writes the history and audit entry on the server). Remove the optimistic local
+   update and the client-written audit/activity entries for this action. First check
+   what the server already writes for a handoff, including any student notification,
+   and avoid duplicates. If the call fails, show the server's message and write
+   nothing. Also check assignTicketStaff: it changes assignedTo without updating
+   assignedRole. Find where it is used and route it through the same handoff action.
+
+5. MAINTENANCE BANNER: the "MAINTENANCE MODE ACTIVE" banner shows only to Super Admin,
+   while the System Settings text says it appears "across all portals". Show the same
+   banner to every staff role (they already receive systemSettings). Do NOT change what
+   students receive from the server; instead tell me the options for showing students a
+   notice. Update the settings description to say what actually happens.
+
+Run npm run lint. Test with ZZ-TEST records only. Item 4 must be tested end to end:
+Super Admin reassigns through Helpdesk Tickets, the ticket's assignedTo AND assignedRole
+change, exactly one history entry appears, and a forced failure writes no audit entry.
+Report files touched per item. If lint fails, stop.

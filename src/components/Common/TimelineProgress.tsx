@@ -217,7 +217,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
           </p>
           <div className="mt-2 text-xs text-stone-500 flex items-center gap-1.5 flex-wrap">
             <UserCheck className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-            <span>Assigned Evaluator: <strong className="text-stone-800">{ticket.assignedTo}</strong></span>
+            <span>Assigned Staff: <strong className="text-stone-800">{ticket.assignedTo}</strong></span>
             {(() => {
               const user = users.find(
                 (u) =>

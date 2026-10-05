@@ -3,6 +3,7 @@ import { useHelpdesk } from '../context/HelpdeskContext';
 import { UserProfileModal } from './Common/UserProfileModal';
 import {
   GraduationCap,
+  AlertTriangle,
   Search,
   Bell,
   CheckCircle,
@@ -27,6 +28,7 @@ import {
 export const Navbar: React.FC = () => {
   const {
     role,
+    systemSettings,
     setRole,
     studentView,
     setStudentView,
@@ -69,6 +71,12 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="safe-area-top sticky top-0 z-50 bg-white border-b border-stone-200 shadow-xs">
+      {role !== 'student' && systemSettings.maintenanceMode && (
+        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-rose-50 border-b border-rose-300 text-rose-800 text-xs font-bold">
+          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+          <span>MAINTENANCE MODE ACTIVE</span>
+        </div>
+      )}
       {/* Top Banner with Institutional Green Accent */}
       <div className="bg-emerald-900 text-emerald-50 px-3 sm:px-4 py-1.5 text-[10px] sm:text-xs font-medium flex items-center justify-between">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full justify-between">

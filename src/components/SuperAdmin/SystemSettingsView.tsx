@@ -292,7 +292,7 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <p className="font-bold text-rose-950">Maintenance Mode</p>
                 <p className="text-[11px] text-rose-800">
-                  Broadcasts advisory banner across all portals and pauses new ticket queues.
+                  Shows a “Maintenance Mode Active” banner to all staff and Super Admin accounts and blocks new ticket intake from non-Super Admin accounts. Students see no banner.
                 </p>
               </div>
               <input

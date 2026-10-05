@@ -38,3 +38,10 @@ export function formatAuditStageDetails(details: string): string {
 export function getAuditRoleLabel(role: string): string {
   return auditRoleLabels[role.trim().toLowerCase()] ?? role;
 }
+
+export function getTicketMilestoneLabel(ticket: { stage: string; status: string }): string {
+  const stageLabel = getTicketStageLabel(ticket.stage);
+  return ticket.status === 'rejected'
+    ? `NEEDS INFORMATION (held at ${stageLabel})`
+    : stageLabel;
+}

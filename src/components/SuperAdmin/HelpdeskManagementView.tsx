@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketPriority, TicketStatus } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
-import { getTicketStageLabel } from '../../utils/ticketLabels';
+import { getTicketStageLabel, getTicketMilestoneLabel } from '../../utils/ticketLabels';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import { TicketDetailAdminModal } from '../AdminPortal/TicketDetailAdminModal';
 import {
@@ -124,19 +124,18 @@ export const HelpdeskManagementView: React.FC = () => {
     return true;
   });
 
-  const handleReassignSubmit = (e: React.FormEvent) => {
+  const handleReassignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reassignModalTicket || !targetStaff) return;
 
-    reassignTicket(reassignModalTicket.id, targetStaff);
-    if (selectedTicket?.id === reassignModalTicket.id) {
-      setSelectedTicket({
-        ...selectedTicket,
-        assignedTo: targetStaff,
-        assignedStaff: targetStaff,
-        assignedEvaluator: targetStaff,
-      });
+    try {
+      await reassignTicket(reassignModalTicket.id, targetStaff);
+    } catch (error) {
+      setNotification(error instanceof Error ? error.message : 'Reassignment could not be saved.');
+      setTimeout(() => setNotification(null), 3500);
+      return;
     }
+    setSelectedTicket(null);
     setNotification(`Ticket #${reassignModalTicket.ticketNumber} successfully reassigned to ${targetStaff}.`);
     setReassignModalTicket(null);
     setTargetStaff('');
@@ -415,7 +414,12 @@ export const HelpdeskManagementView: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-xl bg-stone-50">
                   <span className="text-stone-400 block text-[10px] font-bold uppercase">Current Stage</span>
-                    <span className="font-bold text-emerald-800 mt-0.5 block">{getTicketStageLabel(selectedTicket.stage)}</span>
+                    <span className="font-bold text-emerald-800 mt-0.5 block">{selectedTicket.status === 'rejected' ? getTicketMilestoneLabel(selectedTicket) : getTicketStageLabel(selectedTicket.stage)}</span>
+                  {selectedTicket.status === 'rejected' && (
+                    <span className="block text-[11px] text-stone-600 mt-0.5">
+                      {selectedTicket.rejectionReason?.trim() || "Waiting for the student's response"}
+                    </span>
+                  )}
                 </div>
               </div>
 

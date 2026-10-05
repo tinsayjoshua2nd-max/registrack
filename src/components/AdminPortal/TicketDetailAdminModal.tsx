@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { getTicketMilestoneLabel } from '../../utils/ticketLabels';
 import { normalizeTicketPriority } from '../../utils/ticketQueue';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketStage, TicketStatus, TicketPriority } from '../../types';
@@ -6,6 +6,7 @@ import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { TimelineProgress } from '../Common/TimelineProgress';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   X,
   Lock,
@@ -648,8 +649,12 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-stone-600 mt-1">
-                      Current Milestone: <strong className="text-emerald-900 uppercase font-mono">{normalizedStage.replace('_', ' ')}</strong>
-                      {workflowRoleAction?.description && ` • ${workflowRoleAction.description}`}
+                      Current Milestone: <strong className="text-emerald-900 uppercase font-mono">
+                        {ticket.status === 'rejected' ? getTicketMilestoneLabel(ticket) : normalizedStage.replace('_', ' ')}
+                      </strong>
+                      {ticket.status === 'rejected'
+                        ? ` • ${ticket.rejectionReason?.trim() || "Waiting for the student's response"}`
+                        : workflowRoleAction?.description && ` • ${workflowRoleAction.description}`}
                     </p>
                   </div>
 
@@ -865,17 +870,19 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     </button>
                   </div>
 
+                  {!isCompleted && (
                   <button
-                    disabled={!canOperateWorkflow || isCompleted || workflowSaving}
+                    disabled={!canOperateWorkflow || workflowSaving}
                     onClick={() => setShowRejectBox(!showRejectBox)}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 transition-colors cursor-pointer"
                   >
                     ⚠️ Needs Information / Reject
                   </button>
+                  )}
                 </div>
 
                 {/* Reject / Needs Info Box */}
-                {showRejectBox && (
+                {showRejectBox && !isCompleted && (
                   <form onSubmit={handleRejectOrNeedInfo} className="pt-3 border-t border-stone-200 space-y-2">
                     <label className="block text-xs font-semibold text-rose-800">
                       Reason for Requesting Information or Rejecting:

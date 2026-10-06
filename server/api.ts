@@ -468,7 +468,17 @@ function visibleStudentNotifications(
 
 function redactStudentTicket(ticket: Record<string, unknown>): Record<string, unknown> {
   const { createdByAccountId: _createdByAccountId, ...safeTicket } = ticket;
-  return { ...safeTicket, internalNotes: [] };
+  return {
+    ...safeTicket,
+    internalNotes: [],
+    ...(Array.isArray(ticket.timelineHistory) ? {
+      timelineHistory: ticket.timelineHistory.map((event) => {
+        if (!isObject(event) || event.action === 'reject') return event;
+        const { notes: _notes, ...safeEvent } = event;
+        return safeEvent;
+      }),
+    } : {}),
+  };
 }
 
 function scopeResourcePayload(

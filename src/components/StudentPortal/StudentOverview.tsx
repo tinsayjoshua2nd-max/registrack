@@ -276,9 +276,6 @@ export const StudentOverview: React.FC = () => {
             <p className="text-xs text-emerald-900 leading-relaxed">
               Friday: 8:00 AM - 5:00 PM
             </p>
-            <p className="text-[11px] text-emerald-700">
-              No noon break for document releasing counters.
-            </p>
           </div>
         </div>
       </div>

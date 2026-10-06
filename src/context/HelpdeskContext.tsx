@@ -156,7 +156,7 @@ interface HelpdeskContextType {
   isEvaluator: boolean;
   canAccessApplicationForm: boolean;
 
-  // Super Admin Management Actions
+  // Registrar Officer Management Actions
   users: UserAccount[];
   createUser: (userData: Omit<UserAccount, 'id' | 'createdAt' | 'lastLogin'>) => Promise<void>;
   updateUser: (id: string, updates: Partial<UserAccount>) => Promise<void>;
@@ -1195,7 +1195,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myRole = getOfficerRole(currentUser);
     const myEmail = (currentUser.email || '').toLowerCase();
 
-    // Super Administrator can review full system deletion records
+    // Registrar Officers can review full system deletion records
     if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
       return deletedRequestsHistory;
     }
@@ -1230,7 +1230,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myRole = getOfficerRole(currentUser);
     const myEmail = (currentUser.email || '').toLowerCase();
 
-    // Super Administrator can review full system completion records
+    // Registrar Officers can review full system completion records
     if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
       return completedRequestsHistory;
     }
@@ -1260,7 +1260,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const assignTicketStaff = async (ticketId: string, staffName: string): Promise<void> => {
-    await runTicketWorkflow(ticketId, { action: 'handoff', assignedTo: staffName, notes: 'Reassigned by Super Admin' });
+    await runTicketWorkflow(ticketId, { action: 'handoff', assignedTo: staffName, notes: 'Reassigned by Registrar Officer' });
   };
 
   const updateTicketPriority = async (ticketId: string, priority: TicketPriority): Promise<void> => {
@@ -1405,7 +1405,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         hour12: false,
       }),
       actorName: currentUser?.name || 'System',
-      actorRole: currentUser?.role === 'superadmin' ? 'Super Administrator' : currentUser?.role === 'admin' ? 'Registrar Evaluator' : 'Student',
+      actorRole: currentUser?.role === 'superadmin' ? 'Registrar Officer' : currentUser?.role === 'admin' ? 'Registrar Evaluator' : 'Student',
       action,
       category,
       details,
@@ -1560,7 +1560,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setStudentRecords((prev) => [newRecord, ...prev]);
     addAuditLog('STUDENT_ENROLLED', 'Student', `Added official academic record for ${newRecord.name} (ID: ${newRecord.studentId}).`, 'success');
-    addSystemActivity(`Academic record enrolled for ${newRecord.name} (#${newRecord.studentId})`, currentUser?.name || 'Super Admin', 'account_created');
+    addSystemActivity(`Academic record enrolled for ${newRecord.name} (#${newRecord.studentId})`, currentUser?.name || 'Registrar Officer', 'account_created');
     return { success: true };
   };
 
@@ -1578,7 +1578,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const s = studentRecords.find((item) => item.id === id);
     if (s) {
       addAuditLog('STUDENT_ARCHIVED', 'Student', `Archived academic record of ${s.name} (ID: ${s.studentId}).`, 'warning');
-      addSystemActivity(`Student record archived: ${s.name} (#${s.studentId})`, currentUser?.name || 'Super Admin', 'setting_updated');
+      addSystemActivity(`Student record archived: ${s.name} (#${s.studentId})`, currentUser?.name || 'Registrar Officer', 'setting_updated');
     }
     setStudentRecords((prev) =>
       prev.map((s) => (s.id === id ? { ...s, isArchived: true } : s))
@@ -1589,7 +1589,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const s = studentRecords.find((item) => item.id === id);
     if (s) {
       addAuditLog('STUDENT_RESTORED', 'Student', `Restored active status for ${s.name} (ID: ${s.studentId}).`, 'success');
-      addSystemActivity(`Student record restored: ${s.name} (#${s.studentId})`, currentUser?.name || 'Super Admin', 'setting_updated');
+      addSystemActivity(`Student record restored: ${s.name} (#${s.studentId})`, currentUser?.name || 'Registrar Officer', 'setting_updated');
     }
     setStudentRecords((prev) =>
       prev.map((s) => (s.id === id ? { ...s, isArchived: false } : s))
@@ -1605,14 +1605,14 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setRoles((prev) => [...prev, newRole]);
     addAuditLog('ROLE_CREATED', 'Role', `Created new system role: ${newRole.name}.`, 'success');
-    addSystemActivity(`New system role created: ${newRole.name}`, currentUser?.name || 'Super Admin', 'setting_updated');
+    addSystemActivity(`New system role created: ${newRole.name}`, currentUser?.name || 'Registrar Officer', 'setting_updated');
   };
 
   const updateRole = (id: string, updates: Partial<SystemRole>) => {
     const r = roles.find((item) => item.id === id);
     if (r) {
       addAuditLog('ROLE_PERMISSION_UPDATED', 'Role', `Updated role configuration for "${updates.name || r.name}".`, 'warning');
-      addSystemActivity(`Role permissions modified for ${updates.name || r.name}`, currentUser?.name || 'Super Admin', 'setting_updated');
+      addSystemActivity(`Role permissions modified for ${updates.name || r.name}`, currentUser?.name || 'Registrar Officer', 'setting_updated');
     }
     setRoles((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
@@ -1653,7 +1653,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateSystemSettings = (updates: Partial<SystemSettings>) => {
     addAuditLog('SETTINGS_UPDATED', 'System', 'Enterprise institutional system configuration modified.', 'warning');
-    addSystemActivity('System Settings updated by Administrator', currentUser?.name || 'Super Admin', 'setting_updated');
+    addSystemActivity('System Settings updated by Registrar Officer', currentUser?.name || 'Registrar Officer', 'setting_updated');
     setSystemSettings((prev) => ({ ...prev, ...updates }));
   };
 
@@ -1665,7 +1665,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     await runTicketWorkflow(ticketId, {
       action: 'handoff',
       assignedTo: matchedStaff ? matchedStaff.name : newAssignee,
-      notes: 'Reassigned by Super Admin',
+      notes: 'Reassigned by Registrar Officer',
     });
   };
 
@@ -1687,7 +1687,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
 
     addAuditLog('TICKET_PRIORITY_CHANGED', 'Ticket', `Ticket #${ticket.ticketNumber} priority set to "${priority}".`, 'info');
-    addSystemActivity(`Ticket #${ticket.ticketNumber} priority changed to ${priority}`, currentUser?.name || 'Super Admin', 'status_change', ticket.ticketNumber);
+    addSystemActivity(`Ticket #${ticket.ticketNumber} priority changed to ${priority}`, currentUser?.name || 'Registrar Officer', 'status_change', ticket.ticketNumber);
   };
 
   const createSuperAnnouncement = (announcement: Omit<Announcement, 'id' | 'date'>) => {
@@ -1698,7 +1698,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setAnnouncements((prev) => [newAnn, ...prev]);
     addAuditLog('ANNOUNCEMENT_PUBLISHED', 'System', `Published institutional announcement: "${newAnn.title}".`, 'info');
-    addSystemActivity(`Broadcast announcement published: "${newAnn.title}"`, currentUser?.name || 'Super Admin', 'setting_updated');
+    addSystemActivity(`Broadcast announcement published: "${newAnn.title}"`, currentUser?.name || 'Registrar Officer', 'setting_updated');
   };
 
   const deleteSuperAnnouncement = (id: string) => {
@@ -1741,7 +1741,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       completedRequestsHistory,
       credentialNotice: 'Account passwords and sessions are not included and will not be changed by restore.',
     };
-    addAuditLog('BACKUP_CREATED', 'Backup', 'System database backup snapshot exported by Super Administrator.', 'success');
+    addAuditLog('BACKUP_CREATED', 'Backup', 'System database backup snapshot exported by Registrar Officer.', 'success');
     return JSON.stringify(backupData, null, 2);
   };
 
@@ -1756,7 +1756,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (currentUser) await hydrateAccount(currentUser, accountGenerationRef.current);
 
       addAuditLog('BACKUP_RESTORED', 'Backup', 'System state successfully restored from snapshot.', 'warning');
-      addSystemActivity('System database restored from external snapshot', currentUser?.name || 'Super Admin', 'setting_updated');
+      addSystemActivity('System database restored from external snapshot', currentUser?.name || 'Registrar Officer', 'setting_updated');
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'Failed to parse JSON file.' };

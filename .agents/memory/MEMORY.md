@@ -6,3 +6,4 @@
 - [Student request permissions](student-request-permissions.md) — students track existing requests; request creation belongs to staff, not student accounts.
 - [Disposable service lifetimes](disposable-service-lifetimes.md) — temporary infrastructure must stay owned by a long-lived background shell during verification.
 - [Ticket-stage policy](ticket-stage-policy.md) — server-enforced adjacent transitions, reasoned step-back, legacy compatibility, and fixture-only API verification.
+- [Registrar Officer access](registrar-access-policy.md) — all Registrar Officer accounts receive privileged administration; other staff roles remain restricted.

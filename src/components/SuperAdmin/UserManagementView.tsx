@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { UserAccount, AccountRoleType, AccountStatus } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
+import { getAuditRoleLabel, formatRegistrarTerminology } from '../../utils/ticketLabels';
 import {
   Users,
   UserPlus,
@@ -66,7 +67,8 @@ export const UserManagementView: React.FC = () => {
 
   // Filtered staff and admin users
   const filteredUsers = staffAndAdminUsers.filter((u) => {
-    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    if (roleFilter !== 'all' &&
+      !(roleFilter === 'registrar' ? u.role === 'registrar' || u.role === 'superadmin' : u.role === roleFilter)) return false;
     if (statusFilter !== 'all' && u.status !== statusFilter) return false;
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -251,15 +253,7 @@ export const UserManagementView: React.FC = () => {
                   roleFilter === 'registrar' ? 'bg-white text-emerald-900 shadow-2xs font-bold' : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Registrars
-              </button>
-              <button
-                onClick={() => setRoleFilter('superadmin')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
-                  roleFilter === 'superadmin' ? 'bg-white text-emerald-900 shadow-2xs font-bold' : 'text-stone-600 hover:text-stone-900'
-                }`}
-              >
-                Super Admins
+                Registrar Officers
               </button>
             </div>
 
@@ -335,7 +329,7 @@ export const UserManagementView: React.FC = () => {
                       {/* Role */}
                       <td className="py-3 px-4">
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${roleBadge}`}>
-                          {u.role.replace('_', ' ')}
+                          {getAuditRoleLabel(u.role).replace('_', ' ')}
                         </span>
                       </td>
 
@@ -525,7 +519,6 @@ export const UserManagementView: React.FC = () => {
                     <option value="records_management">Records Management</option>
                     <option value="evaluator">Evaluator</option>
                     <option value="registrar">Registrar Officer</option>
-                    <option value="superadmin">University Registrar (Executive)</option>
                   </select>
                 </div>
 
@@ -626,9 +619,8 @@ export const UserManagementView: React.FC = () => {
                     <option value="receiver">Receiver / Releasing</option>
                     <option value="records_management">Records Management</option>
                     <option value="evaluator">Evaluator</option>
-                    <option value="registrar">Registrar Officer</option>
+                    <option value={editingUser.role === 'superadmin' ? 'superadmin' : 'registrar'}>Registrar Officer</option>
                     {editingUser.role === 'student' && <option value="student">Student</option>}
-                    <option value="superadmin">University Registrar (Executive)</option>
                   </select>
                 </div>
 
@@ -682,7 +674,7 @@ export const UserManagementView: React.FC = () => {
                 <h3 className="font-heading font-bold text-base text-stone-900">
                   User Audit Trail: {viewingActivityUser.name}
                 </h3>
-                <p className="text-[11px] text-stone-500">{viewingActivityUser.email} • {viewingActivityUser.role}</p>
+                <p className="text-[11px] text-stone-500">{viewingActivityUser.email} • {getAuditRoleLabel(viewingActivityUser.role)}</p>
               </div>
               <button
                 onClick={() => setViewingActivityUser(null)}
@@ -704,7 +696,7 @@ export const UserManagementView: React.FC = () => {
                         <span className="font-bold text-stone-900 font-mono text-[11px]">{log.action}</span>
                         <span className="text-[10px] text-stone-500">{log.timestamp}</span>
                       </div>
-                      <p className="text-stone-600 text-[11px]">{log.details}</p>
+                      <p className="text-stone-600 text-[11px]">{formatRegistrarTerminology(log.details)}</p>
                     </div>
                   ))
               )}

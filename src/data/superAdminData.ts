@@ -19,7 +19,7 @@ const DEFAULT_SUPER_ADMIN_PERMISSIONS: RolePermissions = {
 export const INITIAL_ROLES: SystemRole[] = [
   {
     id: 'role-1',
-    name: 'Super Administrator',
+    name: 'Registrar Officer',
     description: 'Unrestricted enterprise administrative access over all records, user accounts, system configuration, audit logs, and backups.',
     isSystemDefault: true,
     userCount: 0,
@@ -79,19 +79,10 @@ export const INITIAL_ROLES: SystemRole[] = [
   {
     id: 'role-5',
     name: 'Registrar Officer',
-    description: 'Reviews curriculum requirements, manages document releasing counters, applies university seals, and signs credentials.',
+    description: 'Reviews and releases credentials with full administrative access to records, accounts, system configuration, audit logs, and backups.',
     isSystemDefault: true,
     userCount: 0,
-    permissions: {
-      tickets: { view: true, create: true, edit: true, delete: true },
-      students: { view: true, create: false, edit: true, delete: false },
-      documents: { view: true, create: true, edit: true, delete: false },
-      announcements: { view: true, create: true, edit: true, delete: false },
-      users: { view: true, create: false, edit: false, delete: false },
-      reports: { view: true, export: true },
-      settings: { view: true, edit: false },
-      auditLogs: { view: true, export: true },
-    },
+    permissions: DEFAULT_SUPER_ADMIN_PERMISSIONS,
   },
 ];
 

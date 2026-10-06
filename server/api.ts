@@ -4,6 +4,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { withTransaction, pool } from './database';
 import { normalizeTicketPriority } from '../src/utils/ticketQueue';
 import { projectAccounts, projectStudents } from './rolePayload';
+import { hasRegistrarAccess } from './registrarAccess';
 import { appendWorkflowEvidence, performTicketWorkflow, PROTECTED_WORKFLOW_FIELDS, WorkflowError } from './ticketWorkflow';
 import {
   createSessionToken,
@@ -157,12 +158,13 @@ function toAuthenticatedUser(row: AccountRow): Record<string, unknown> {
     };
   }
 
-  if (row.role === 'superadmin') {
+  if (hasRegistrarAccess(row.role)) {
     return {
       role: 'superadmin',
       ...base,
-      office: SUPERADMIN_OFFICE,
-      adminRoleTitle: 'University Registrar',
+      staffRole: row.role,
+      office: String(account.departmentOrOffice || SUPERADMIN_OFFICE),
+      adminRoleTitle: 'Registrar Officer',
       permissions: ['all'],
     };
   }
@@ -263,10 +265,10 @@ function requireAuth(req: RequestWithAuth, res: Response, next: NextFunction): v
     .catch(next);
 }
 
-function requireSuperadmin(req: RequestWithAuth, res: Response, next: NextFunction): void {
+function requireRegistrar(req: RequestWithAuth, res: Response, next: NextFunction): void {
   requireAuth(req, res, () => {
-    if (req.auth?.accountRole !== 'superadmin') {
-      res.status(403).json({ error: 'Only the Registrar can manage system accounts.' });
+    if (!hasRegistrarAccess(req.auth?.accountRole)) {
+      res.status(403).json({ error: 'Only Registrar Officers can manage the system.' });
       return;
     }
     next();
@@ -422,7 +424,7 @@ async function loadPublicUsers(): Promise<AccountPublic[]> {
 }
 
 function canAccessTicket(ticket: Record<string, unknown>, account: AuthenticatedAccount): boolean {
-  if (account.accountRole === 'superadmin' || account.accountRole === 'receiver') return true;
+  if (hasRegistrarAccess(account.accountRole) || account.accountRole === 'receiver') return true;
   const name = account.name.trim().toLowerCase();
   if (!name) return false;
   return typeof ticket.assignedTo === 'string' && ticket.assignedTo.trim().toLowerCase() === name;
@@ -434,7 +436,7 @@ function visibleOfficerHistory(
   tickets: Record<string, unknown>[],
 ): Record<string, unknown>[] {
   if (!Array.isArray(values)) return [];
-  if (account.accountRole === 'superadmin' || account.accountRole === 'receiver') {
+  if (hasRegistrarAccess(account.accountRole) || account.accountRole === 'receiver') {
     return values.filter(isObject);
   }
   return values.filter(isObject).filter((record) => {
@@ -490,14 +492,14 @@ function scopeResourcePayload(
   const records = value.filter(isObject);
   if (key === 'users') return projectAccounts(account, records);
   if (key === 'studentRecords') return projectStudents(account, records, [], []);
-  if ((key === 'auditLogs' || key === 'systemActivities') && account.accountRole !== 'superadmin') return [];
+  if ((key === 'auditLogs' || key === 'systemActivities') && !hasRegistrarAccess(account.accountRole)) return [];
   if (key === 'tickets') {
     if (account.accountRole === 'student') {
       return records
         .filter((ticket) => String(ticket.studentId || '') === account.studentId)
         .map(redactStudentTicket);
     }
-    if (account.accountRole !== 'superadmin' && account.accountRole !== 'receiver') {
+    if (!hasRegistrarAccess(account.accountRole) && account.accountRole !== 'receiver') {
       return records.filter((ticket) => canAccessTicket(ticket, account));
     }
     return records;
@@ -695,7 +697,7 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
     Number(stored.get(key)?.version) || 0,
   ]));
 
-  if (account.accountRole === 'superadmin') {
+  if (hasRegistrarAccess(account.accountRole)) {
     state.users = projectAccounts(account, await loadPublicUsers());
     state.studentRecords = projectStudents(account, state.studentRecords, [], []);
     state.deletedAccounts = await loadData('deletedAccounts');
@@ -756,7 +758,7 @@ async function ensureBootstrapAccount(): Promise<void> {
   await withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [7_314_290_123]);
     const result = await client.query<{ count: string }>(
-      "SELECT count(*)::text AS count FROM registrack_accounts WHERE role = 'superadmin'",
+      "SELECT count(*)::text AS count FROM registrack_accounts WHERE role IN ('registrar', 'superadmin')",
     );
     if (Number(result.rows[0]?.count || 0) > 0) return;
 
@@ -772,7 +774,7 @@ async function ensureBootstrapAccount(): Promise<void> {
     await client.query(
       `INSERT INTO registrack_accounts
          (id, name, email, role, status, student_id, password_hash, data)
-       VALUES ($1, $2, $3, 'superadmin', 'active', NULL, $4, $5::jsonb)`,
+       VALUES ($1, $2, $3, 'registrar', 'active', NULL, $4, $5::jsonb)`,
       [
         id,
         BOOTSTRAP_NAME,
@@ -800,12 +802,12 @@ function roleForLogin(userRole: string, requestedRole: string): boolean {
   if (requestedRole === 'auto') return true;
   if (requestedRole === 'student') return userRole === 'student';
   if (requestedRole === 'admin') return userRole !== 'student' && userRole !== 'superadmin';
-  return requestedRole === 'superadmin' && userRole === 'superadmin';
+  return requestedRole === 'superadmin' && hasRegistrarAccess(userRole);
 }
 
 function accountAuthRole(userRole: string): string {
   if (userRole === 'student') return 'student';
-  if (userRole === 'superadmin') return 'superadmin';
+  if (hasRegistrarAccess(userRole)) return 'superadmin';
   return 'admin';
 }
 
@@ -945,7 +947,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/state/restore-backup', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
+  app.post('/api/state/restore-backup', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
     try {
       let source: unknown = req.body?.backup ?? req.body?.data ?? req.body?.payload ?? req.body;
       if (typeof source === 'string') {
@@ -995,7 +997,7 @@ export function registerApi(app: import('express').Express): void {
                 ...(Array.isArray(ticket.timelineHistory) ? ticket.timelineHistory : []).filter(event =>
                   !(Array.isArray(previous.timelineHistory) ? previous.timelineHistory : []).some(old => stableJson(old) === stableJson(event))),
               ],
-            }, req.auth!, 'backup_restore', 'Intentional Super Admin backup recovery.', {
+            }, req.auth!, 'backup_restore', 'Intentional Registrar Officer backup recovery.', {
               lock: lockResource, save: saveResource,
             }));
           } else evidenced.push(ticket);
@@ -1030,7 +1032,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/archive-completed', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
+  app.post('/api/archive-completed', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
     try {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
@@ -1073,8 +1075,8 @@ export function registerApi(app: import('express').Express): void {
     try {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
-      if (auth.accountRole !== 'receiver' && auth.accountRole !== 'superadmin') {
-        return fail(res, 403, 'Only Receiver and Super Admin can submit new requests.');
+      if (auth.accountRole !== 'receiver' && !hasRegistrarAccess(auth.accountRole)) {
+        return fail(res, 403, 'Only Receiver / Releasing and Registrar Officers can submit new requests.');
       }
       if (!isObject(req.body?.ticket)) return fail(res, 400, 'A ticket object is required.');
       const result = await withTransaction((client) => createCanonicalTicket(client, req.body.ticket, auth));
@@ -1096,7 +1098,7 @@ export function registerApi(app: import('express').Express): void {
         lock: lockResource, save: saveResource,
         access: async (ticket, actor, client) => {
           const assignee = String(ticket.assignedTo || '').trim().toLowerCase();
-          if (actor.accountRole === 'superadmin' || assignee === actor.name.trim().toLowerCase()) return true;
+          if (hasRegistrarAccess(actor.accountRole) || assignee === actor.name.trim().toLowerCase()) return true;
           if (actor.accountRole !== 'receiver') return false;
           const result = await client.query<{ payload: unknown }>(
             "SELECT payload FROM registrack_data WHERE key = 'systemSettings'",
@@ -1306,7 +1308,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/users', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
+  app.post('/api/users', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
     try {
       const input = cleanAccountInput(req.body?.user);
       const passwordHash = await hashPassword(input.password);
@@ -1352,12 +1354,12 @@ export function registerApi(app: import('express').Express): void {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
       const isSelf = auth.accountId === req.params.id;
-      if (auth.accountRole !== 'superadmin' && !isSelf) {
-        return fail(res, 403, 'Only the Registrar can update another account.');
+      if (!hasRegistrarAccess(auth.accountRole) && !isSelf) {
+        return fail(res, 403, 'Only Registrar Officers can update another account.');
       }
       if (!isObject(req.body?.updates)) return fail(res, 400, 'Account updates must be an object.');
       const updates = req.body.updates as Record<string, unknown>;
-      const allowed = auth.accountRole === 'superadmin'
+      const allowed = hasRegistrarAccess(auth.accountRole)
         ? new Set(['name', 'email', 'role', 'status', 'departmentOrOffice', 'studentId', 'phoneNumber', 'profilePicture', 'avatarColor', 'adminRoleTitle', 'degreeProgram', 'yearLevel'])
         : new Set(['profilePicture']);
       if (Object.keys(updates).some((key) => !allowed.has(key))) {
@@ -1375,22 +1377,22 @@ export function registerApi(app: import('express').Express): void {
           updates.studentId !== existing.student_id) {
           throw new Error('A student ID cannot be changed through account editing because it is linked to request history.');
         }
-        if (auth.accountRole === 'superadmin' && existing.role === 'superadmin' &&
-          updates.role !== undefined && updates.role !== 'superadmin') {
+        if (hasRegistrarAccess(existing.role) && existing.status === 'active' &&
+          updates.role !== undefined && !hasRegistrarAccess(String(updates.role))) {
           const count = await client.query<{ count: string }>(
-            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role = 'superadmin' AND status = 'active'",
+            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role IN ('registrar', 'superadmin') AND status = 'active'",
           );
           if (Number(count.rows[0]?.count || 0) <= 1) {
-            throw new Error('The last active Registrar account cannot be demoted.');
+            throw new Error('The last active Registrar Officer account cannot be demoted.');
           }
         }
-        if (auth.accountRole === 'superadmin' && existing.role === 'superadmin' &&
+        if (hasRegistrarAccess(existing.role) && existing.status === 'active' &&
           updates.status !== undefined && updates.status !== 'active') {
           const count = await client.query<{ count: string }>(
-            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role = 'superadmin' AND status = 'active'",
+            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role IN ('registrar', 'superadmin') AND status = 'active'",
           );
           if (Number(count.rows[0]?.count || 0) <= 1) {
-            throw new Error('The last active Registrar account cannot be deactivated.');
+            throw new Error('The last active Registrar Officer account cannot be deactivated.');
           }
         }
 
@@ -1472,7 +1474,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.delete('/api/users/:id', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
+  app.delete('/api/users/:id', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
     try {
       const deleted = await withTransaction(async (client) => {
         const result = await client.query<AccountRow>(
@@ -1482,12 +1484,12 @@ export function registerApi(app: import('express').Express): void {
         );
         const target = result.rows[0];
         if (!target) return null;
-        if (target.role === 'superadmin' && target.status === 'active') {
+        if (hasRegistrarAccess(target.role) && target.status === 'active') {
           const count = await client.query<{ count: string }>(
-            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role = 'superadmin' AND status = 'active'",
+            "SELECT count(*)::text AS count FROM registrack_accounts WHERE role IN ('registrar', 'superadmin') AND status = 'active'",
           );
           if (Number(count.rows[0]?.count || 0) <= 1) {
-            throw new Error('The last active Registrar account cannot be deleted.');
+            throw new Error('The last active Registrar Officer account cannot be deleted.');
           }
         }
 
@@ -1518,7 +1520,7 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/users/:id/reset-password', csrfGuard, requireSuperadmin, async (req: RequestWithAuth, res, next) => {
+  app.post('/api/users/:id/reset-password', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
     try {
       const password = makeTemporaryPassword();
       const passwordHash = await hashPassword(password);
@@ -1599,7 +1601,7 @@ function completedRecordFromTicket(
   const completedByRole = typeof ticket.completedByOfficerRole === 'string'
     ? ticket.completedByOfficerRole
     : typeof ticket.assignedRole === 'string' ? ticket.assignedRole
-      : completedByName === archiver.name ? 'superadmin' : 'other';
+      : completedByName === archiver.name ? archiver.accountRole : 'other';
 
   return {
     id: `comp-${randomUUID()}`,
@@ -1631,7 +1633,7 @@ function completedRecordFromTicket(
 }
 
 function canWriteResource(auth: AuthenticatedAccount, key: string): boolean {
-  if (auth.accountRole === 'superadmin') return key !== 'users' && key !== 'deletedAccounts';
+  if (hasRegistrarAccess(auth.accountRole)) return key !== 'users' && key !== 'deletedAccounts';
   if (auth.accountRole !== 'student') {
     return new Set([
       'tickets',
@@ -1726,7 +1728,7 @@ function isActiveRequestCategory(value: unknown, categories: Record<string, unkn
 }
 
 function enforceTicketIntake(auth: AuthenticatedAccount, config: TicketIntakeConfig, category: unknown): void {
-  if (config.settings.maintenanceMode === true && auth.accountRole !== 'superadmin') {
+  if (config.settings.maintenanceMode === true && !hasRegistrarAccess(auth.accountRole)) {
     throw new ApiError(503, 'New requests are temporarily unavailable while the Registrar system is in maintenance mode.');
   }
   if (!isActiveRequestCategory(category, config.categories)) {
@@ -2485,7 +2487,7 @@ function auditRoleLabel(role: string): string {
     records_management: 'Records Management',
     evaluator: 'Evaluator',
     registrar: 'Registrar Officer',
-    superadmin: 'Super Administrator',
+    superadmin: 'Registrar Officer',
   };
   return labels[role] || role;
 }
@@ -2551,7 +2553,7 @@ async function mergeOfficerHistory(
   auth: AuthenticatedAccount,
 ): Promise<Record<string, unknown>[]> {
   const merged = mergeAppendOnlyRecords(currentValue, submittedValue);
-  if (auth.accountRole === 'superadmin' || auth.accountRole === 'receiver') return merged;
+  if (hasRegistrarAccess(auth.accountRole) || auth.accountRole === 'receiver') return merged;
 
   const existingIds = new Set(
     (Array.isArray(currentValue) ? currentValue.filter(isObject) : []).map((record) => String(record.id || '')),

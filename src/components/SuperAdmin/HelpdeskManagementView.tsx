@@ -80,7 +80,7 @@ export const HelpdeskManagementView: React.FC = () => {
       if (user.role === 'receiver') return 'Receiver / Releasing';
       if (user.role === 'records_management') return 'Records Management';
       if (user.role === 'evaluator') return 'Evaluator';
-      if (user.role === 'registrar' || user.role === 'superadmin') return 'University Registrar';
+      if (user.role === 'registrar' || user.role === 'superadmin') return 'Registrar Officer';
       if (user.role === 'admin') return 'Admin';
       return user.role;
     }
@@ -160,7 +160,7 @@ export const HelpdeskManagementView: React.FC = () => {
     } finally {
       setForceCloseSaving(false);
     }
-    setNotification(`Ticket #${ticketNumber} force-closed by Super Admin.`);
+    setNotification(`Ticket #${ticketNumber} force-closed by Registrar Officer.`);
     setForceCloseModalTicket(null);
     setForceCloseConfirmOpen(false);
     setCloseReason('');
@@ -171,7 +171,7 @@ export const HelpdeskManagementView: React.FC = () => {
     e.preventDefault();
     if (!selectedTicket || !noteInput.trim()) return;
 
-    addInternalNote(selectedTicket.id, noteInput.trim(), 'Super Admin (Atty. Rodrigo)');
+    addInternalNote(selectedTicket.id, noteInput.trim(), 'Registrar Officer');
     setNoteInput('');
     setNotification('Internal administrative note recorded.');
     setTimeout(() => setNotification(null), 2500);

@@ -78,7 +78,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
 
   const roleLabel =
     role === 'superadmin'
-      ? 'Super Administrator'
+      ? 'Registrar Officer'
       : role === 'admin'
       ? 'Registrar Officer'
       : 'Student';
@@ -364,7 +364,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                 <div>
                   <p className="font-bold text-stone-900">Account Password Security</p>
                   <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                    Registrar Officers and Super Administrators can freely update their personal account password at any time. Once updated, your new password will be required immediately on your next login session.
+                    Staff and Registrar Officers can freely update their personal account password at any time. Once updated, your new password will be required immediately on your next login session.
                   </p>
                 </div>
               </div>

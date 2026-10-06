@@ -1,6 +1,7 @@
 import React from 'react';
 import { Ticket, TicketStage } from '../../types';
 import { useHelpdesk } from '../../context/HelpdeskContext';
+import { getAuditRoleLabel } from '../../utils/ticketLabels';
 import { Check, Clock, AlertCircle, MapPin, Calendar, FileText, UserCheck } from 'lucide-react';
 
 interface TimelineProgressProps {
@@ -224,12 +225,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
                   u.name.toLowerCase() === ticket.assignedTo.toLowerCase() ||
                   ticket.assignedTo.toLowerCase().includes(u.name.toLowerCase())
               );
-              let roleBadge = user ? (
-                user.role === 'receiver' ? 'Receiver / Releasing' :
-                user.role === 'records_management' ? 'Records Management' :
-                user.role === 'evaluator' ? 'Evaluator' :
-                user.role === 'registrar' ? 'Registrar Officer' : user.role
-              ) : null;
+              let roleBadge = user ? getAuditRoleLabel(user.role) : null;
               if (!roleBadge) {
                 if (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')) roleBadge = 'Receiver / Releasing';
                 else if (ticket.assignedTo.toLowerCase().includes('ronald')) roleBadge = 'Records Management';

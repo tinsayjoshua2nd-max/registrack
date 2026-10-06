@@ -12,7 +12,7 @@ const target = new URL(process.env.DATABASE_URL || 'http://invalid');
 assert.equal(target.hostname, '127.0.0.1', 'Only disposable loopback PostgreSQL is permitted.');
 assert.equal(target.port, '55439');
 assert.equal(target.pathname, '/registrack_temp_zztest');
-const roles = ['receiver', 'records_management', 'evaluator', 'registrar', 'superadmin', 'student', 'other_student', 'fallback_student'];
+const roles = ['receiver', 'records_management', 'evaluator', 'registrar', 'superadmin', 'admin', 'staff', 'student', 'other_student', 'fallback_student'];
 const cookies = new Map<string, string>();
 const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=';
 const student = (id: string, name: string) => ({
@@ -123,8 +123,13 @@ try {
         assert.deepEqual(data.users, []); assert.deepEqual(data.studentRecords, []);
         assert(data.tickets.length && data.tickets.every((t: any) => t.studentId === '90000001'));
         assert(data.tickets.every((t: any) => t.internalNotes.length === 0));
-      } else if (role === 'superadmin') {
-        for (const key of Object.keys(initial)) assert(data[key] !== undefined, `Super Admin resource ${key}`);
+      } else if (role === 'superadmin' || role === 'registrar') {
+        assert.equal(boot.body.user.role, 'superadmin', 'Privileged portal access level');
+        assert.equal(boot.body.user.adminRoleTitle, 'Registrar Officer');
+        assert.equal(boot.body.user.staffRole, role);
+        assert.deepEqual(boot.body.user.permissions, ['all']);
+        for (const key of Object.keys(initial)) assert(data[key] !== undefined, `Registrar Officer resource ${key}`);
+        assert.equal(data.tickets.length, fixtureTickets.length);
         assert.equal(data.studentRecords[0].unitsEnrolled, 18);
         assert(data.users.every((u: any) => u.email && u.departmentOrOffice && u.lastLogin && u.createdAt));
         assert(data.users.every((u: any) => !('privateMarker' in u) && !('password_hash' in u)));
@@ -150,10 +155,10 @@ try {
     assert.deepEqual((await state()).tickets, fixtureTickets, 'Read scoping must not repair stored tickets');
   });
   await check('creation permission matches the Application Form', async () => {
-    for (const role of ['student', 'records_management', 'evaluator', 'registrar']) {
+    for (const role of ['student', 'records_management', 'evaluator', 'admin', 'staff']) {
       assert.equal((await request(role, '/api/tickets', 'POST', { ticket: { id: 'ZZ-TEST-forbidden' } })).status, 403);
     }
-    for (const role of ['receiver', 'superadmin']) {
+    for (const role of ['receiver', 'registrar', 'superadmin']) {
       const created = await request(role, '/api/tickets', 'POST', { ticket: {
         ...ticket(`create-${role}`, 'receiver'), assignedTo: 'ZZ-TEST-receiver',
       } });
@@ -211,14 +216,17 @@ try {
     assert.equal(handoff.body.ticket.stage, 'processing');
     const evaluatorState = await state('evaluator');
     assert(evaluatorState.tickets.some((t: any) => t.id === 'ZZ-TEST-odd'));
-    await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' }, 403);
+    await workflow('records_management', 'odd', 'stage', { targetStage: 'for_seal' }, 403);
+    await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' }, 400);
     await workflow('receiver', 'evaluator', 'stage', { targetStage: 'for_seal' }, 403);
     await workflow('receiver', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true }, 403);
     await workflow('superadmin', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true });
   });
-  await check('workflow authorization: Receiver denied on Evaluator ticket; Evaluator and Super Admin allowed', async () => {
+  await check('workflow authorization: restricted staff denied; assigned Evaluator and Registrar Officers allowed', async () => {
     await workflow('receiver', 'evaluator', 'stage', { targetStage: 'for_seal' }, 403);
     await workflow('evaluator', 'evaluator', 'stage', { targetStage: 'for_seal' });
+    await workflow('registrar', 'evaluator', 'stage', { targetStage: 'ready' });
+    await workflow('superadmin', 'evaluator', 'stage', { targetStage: 'for_seal', notes: 'ZZ-TEST-legacy-access' });
     await workflow('superadmin', 'evaluator', 'stage', { targetStage: 'ready' });
   });
   await check('browser audit/activity identity, server time, whitelists, and existing-row preservation', async () => {
@@ -261,7 +269,7 @@ try {
     const savedAudit = saved.auditLogs.find((entry: any) => entry.id === audit.id);
     const savedActivity = saved.systemActivities.find((entry: any) => entry.id === activity.id);
     assert.equal(savedAudit.actorName, 'ZZ-TEST-superadmin');
-    assert.equal(savedAudit.actorRole, 'Super Administrator');
+    assert.equal(savedAudit.actorRole, 'Registrar Officer');
     assert.equal(savedAudit.actorAccountId, 'ZZ-TEST-superadmin');
     assert(!Number.isNaN(Date.parse(savedAudit.timestamp)));
     assert.equal(savedActivity.actor, 'ZZ-TEST-superadmin');
@@ -383,7 +391,7 @@ try {
     ] as [Record<string, unknown>, number][]) {
       assert.equal((await saveTicketFields('superadmin', 'receiver', changes, before)).status, expected);
     }
-    assert.equal((await saveTicketFields('registrar', 'receiver', { releaseLocation: 'ZZ-TEST-forbidden' }, before)).status, 403);
+    assert.equal((await saveTicketFields('records_management', 'receiver', { releaseLocation: 'ZZ-TEST-forbidden' }, before)).status, 403);
     assert.deepEqual((await state()).tickets, before.tickets);
   });
   await check('two sessions saving from the same resource version: second gets 409', async () => {
@@ -415,19 +423,19 @@ try {
     await pool.query("UPDATE registrack_data SET payload = $1 WHERE key='auditLogs'", [JSON.stringify(savedAuditLogs)]);
   });
   await check('administrative reopen, Ready-gated Force Close, restore and cold archive', async () => {
-    await workflow('superadmin', 'receiver', 'force_close', { notes: 'ZZ-TEST-close', confirmed: true }, 400);
-    await workflow('superadmin', 'ready', 'reopen', { notes: 'ZZ-TEST-reopen' }, 400);
-    await workflow('superadmin', 'ready', 'reopen', { notes: 'ZZ-TEST-reopen', confirmed: true });
-    await workflow('superadmin', 'ready', 'stage', { targetStage: 'for_seal' });
-    await workflow('superadmin', 'ready', 'stage', { targetStage: 'ready' });
-    await workflow('superadmin', 'ready', 'force_close', { notes: 'ZZ-TEST-close', confirmed: true });
+    await workflow('registrar', 'receiver', 'force_close', { notes: 'ZZ-TEST-close', confirmed: true }, 400);
+    await workflow('registrar', 'ready', 'reopen', { notes: 'ZZ-TEST-reopen' }, 400);
+    await workflow('registrar', 'ready', 'reopen', { notes: 'ZZ-TEST-reopen', confirmed: true });
+    await workflow('registrar', 'ready', 'stage', { targetStage: 'for_seal' });
+    await workflow('registrar', 'ready', 'stage', { targetStage: 'ready' });
+    await workflow('registrar', 'ready', 'force_close', { notes: 'ZZ-TEST-close', confirmed: true });
     const deleted = await request('receiver', '/api/tickets/ZZ-TEST-receiver/delete', 'POST', { reason: 'ZZ-TEST-delete' });
     assert.equal(deleted.status, 200);
     const history = (await state()).deletedRequestsHistory.find((r: any) => r.ticketId === 'ZZ-TEST-receiver');
     const restored = await request('receiver', `/api/tickets/${history.id}/restore`, 'POST');
     assert.equal(restored.status, 200);
     assert.equal(restored.body.ticket.stage, history.ticketSnapshot.stage);
-    const archived = await request('superadmin', '/api/archive-completed', 'POST', {});
+    const archived = await request('registrar', '/api/archive-completed', 'POST', {});
     assert.equal(archived.status, 200);
     const data = await state();
     assert(!data.tickets.some((t: any) => t.id === 'ZZ-TEST-ready'));
@@ -444,11 +452,95 @@ try {
   await check('backup recovery records intentional stage changes', async () => {
     const data = await state();
     const changed = data.tickets.map((t: any) => t.id === 'ZZ-TEST-receiver' ? { ...t, stage: 'ready', status: 'processing' } : t);
-    const response = await request('superadmin', '/api/state/restore-backup', 'POST', { backup: { tickets: changed } });
+    const response = await request('registrar', '/api/state/restore-backup', 'POST', { backup: { tickets: changed } });
     assert.equal(response.status, 200, JSON.stringify(response.body));
     const after = await state();
     assert(after.auditLogs.some((log: any) => log.action === 'WORKFLOW_BACKUP_RESTORE'));
     assert.equal(after.tickets.find((t: any) => t.id === 'ZZ-TEST-receiver').timelineHistory.at(-1).action, 'backup_restore');
+  });
+  await check('all Registrar Officer accounts can manage accounts; automatic login opens the privileged portal', async () => {
+    const password = `ZZ-TEST-${randomUUID()}`;
+    const created = await request('registrar', '/api/users', 'POST', { user: {
+      name: 'ZZ-TEST-second-registrar', email: 'second-registrar@zz-test.invalid', password,
+      role: 'registrar', status: 'active', departmentOrOffice: 'ZZ-TEST-office',
+    } });
+    assert.equal(created.status, 201);
+    const id = created.body.user.id;
+    const login = await request('registrar', '/api/login', 'POST', {
+      role: 'auto', identifier: 'ZZ-TEST-second-registrar', password,
+    });
+    assert.equal(login.status, 200);
+    assert.equal(login.body.user.role, 'superadmin');
+    assert.equal(login.body.user.adminRoleTitle, 'Registrar Officer');
+    assert.equal(login.body.user.staffRole, 'registrar');
+    assert.deepEqual(login.body.user.permissions, ['all']);
+    const token = createSessionToken();
+    await pool.query('INSERT INTO registrack_sessions VALUES ($1,$2,now()+interval \'1 hour\')', [hashSessionToken(token), id]);
+    cookies.set('second_registrar', `registrack_session=${token}`);
+    assert.equal((await request('second_registrar', '/api/users/ZZ-TEST-staff', 'PUT', {
+      updates: { departmentOrOffice: 'ZZ-TEST-updated-office' },
+    })).status, 200);
+    const reset = await request('second_registrar', `/api/users/${id}/reset-password`, 'POST');
+    assert.equal(reset.status, 200);
+    assert.equal(typeof reset.body.password, 'string');
+    assert.equal((await request('registrar', '/api/login', 'POST', {
+      role: 'auto', identifier: 'ZZ-TEST-second-registrar', password: reset.body.password,
+    })).status, 200);
+    assert.equal((await request('registrar', `/api/users/${id}`, 'DELETE')).status, 200);
+    assert.equal((await request('second_registrar', '/api/state')).status, 401);
+  });
+  await check('Registrar Officers can save every administrative resource and bypass maintenance intake', async () => {
+    for (const key of ['studentRecords', 'roles', 'requestCategories', 'systemSettings']) {
+      const before = await state('registrar');
+      const saved = await request('registrar', `/api/state/${key}`, 'PUT', {
+        payload: before[key], version: before._versions[key],
+      });
+      assert.equal(saved.status, 200, `Registrar Officer can save ${key}`);
+      assert.deepEqual(saved.body.payload, before[key]);
+    }
+    const before = await state('registrar');
+    assert.equal((await request('registrar', '/api/state/systemSettings', 'PUT', {
+      payload: { ...before.systemSettings, maintenanceMode: true }, version: before._versions.systemSettings,
+    })).status, 200);
+    assert.equal((await request('receiver', '/api/tickets', 'POST', { ticket: {
+      ...ticket('maintenance-blocked', 'receiver'), assignedTo: 'ZZ-TEST-receiver',
+    } })).status, 503);
+    assert.equal((await request('registrar', '/api/tickets', 'POST', { ticket: {
+      ...ticket('maintenance-registrar', 'receiver'), assignedTo: 'ZZ-TEST-receiver',
+    } })).status, 201);
+    const after = await state('registrar');
+    assert.equal((await request('registrar', '/api/state/systemSettings', 'PUT', {
+      payload: { ...after.systemSettings, maintenanceMode: false }, version: after._versions.systemSettings,
+    })).status, 200);
+  });
+  await check('other staff and students cannot use Registrar Officer-only API features', async () => {
+    for (const role of ['receiver', 'records_management', 'evaluator', 'admin', 'staff', 'student']) {
+      const boot = await request(role, '/api/bootstrap');
+      assert.equal(boot.body.user.role, role === 'student' ? 'student' : 'admin');
+      assert(!boot.body.user.permissions?.includes('all'));
+      for (const [path, method, body] of [
+        ['/api/users', 'POST', { user: {} }],
+        ['/api/users/ZZ-TEST-registrar', 'PUT', { updates: { role: 'receiver' } }],
+        ['/api/users/ZZ-TEST-registrar', 'DELETE', {}],
+        ['/api/users/ZZ-TEST-registrar/reset-password', 'POST', {}],
+        ['/api/archive-completed', 'POST', {}],
+        ['/api/state/restore-backup', 'POST', { backup: { tickets: [] } }],
+      ] as const) assert.equal((await request(role, path, method, body)).status, 403, `${role}: ${path}`);
+      for (const key of ['studentRecords', 'roles', 'requestCategories', 'systemSettings']) {
+        const before = await state('registrar');
+        assert.equal((await request(role, `/api/state/${key}`, 'PUT', {
+          payload: before[key], version: before._versions[key],
+        })).status, 403, `${role}: ${key}`);
+      }
+    }
+  });
+  await check('the last active Registrar Officer cannot be demoted, deactivated or deleted', async () => {
+    await pool.query("UPDATE registrack_accounts SET status='inactive' WHERE id='ZZ-TEST-superadmin'");
+    for (const updates of [{ role: 'receiver' }, { status: 'inactive' }]) {
+      assert.equal((await request('registrar', '/api/users/ZZ-TEST-registrar', 'PUT', { updates })).status, 400);
+    }
+    assert.equal((await request('registrar', '/api/users/ZZ-TEST-registrar', 'DELETE')).status, 400);
+    await pool.query("UPDATE registrack_accounts SET status='active' WHERE id='ZZ-TEST-superadmin'");
   });
   console.info(`${checks} API check groups passed. Only isolated ZZ-TEST records were used.`);
 } finally {

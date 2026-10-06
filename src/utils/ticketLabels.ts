@@ -13,8 +13,15 @@ const auditRoleLabels: Record<string, string> = {
   records_management: 'Records Management',
   evaluator: 'Evaluator',
   registrar: 'Registrar Officer',
-  superadmin: 'Super Administrator',
+  superadmin: 'Registrar Officer',
+  'super admin': 'Registrar Officer',
+  'super administrator': 'Registrar Officer',
 };
+
+export function formatRegistrarTerminology(text: string): string {
+  return text.replace(/\bSuper[\s_-]*Admin(?:istrator)?(s?)\b/gi,
+    (_match, plural: string) => `Registrar Officer${plural}`);
+}
 
 export function getTicketStageLabel(stage: string): string {
   const normalizedStage = stage.trim().toLowerCase();
@@ -29,14 +36,14 @@ export function formatAuditStageDetails(details: string): string {
     (_match, prefix: string, fromStage: string, arrow: string, toStage: string) =>
       `${prefix}${getTicketStageLabel(fromStage)}${arrow}${getTicketStageLabel(toStage)}`,
   );
-  return formattedTransition.replace(
+  return formatRegistrarTerminology(formattedTransition.replace(
     /\b(Stage changed to )([A-Za-z0-9_-]+)\b/i,
     (_match, prefix: string, stage: string) => `${prefix}${getTicketStageLabel(stage)}`,
-  );
+  ));
 }
 
 export function getAuditRoleLabel(role: string): string {
-  return auditRoleLabels[role.trim().toLowerCase()] ?? role;
+  return auditRoleLabels[role.trim().toLowerCase()] ?? formatRegistrarTerminology(role);
 }
 
 export function getTicketMilestoneLabel(ticket: { stage: string; status: string }): string {

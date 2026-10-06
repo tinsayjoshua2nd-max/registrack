@@ -3,6 +3,7 @@ import { useHelpdesk } from '../../context/HelpdeskContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { TicketStatus, Ticket } from '../../types';
+import { getAuditRoleLabel } from '../../utils/ticketLabels';
 import {
   Search,
   Filter,
@@ -202,12 +203,7 @@ export const MyRequestsView: React.FC = () => {
                             u.name.toLowerCase() === ticket.assignedTo.toLowerCase() ||
                             ticket.assignedTo.toLowerCase().includes(u.name.toLowerCase())
                         );
-                        let roleBadge = user ? (
-                          user.role === 'receiver' ? 'Receiver / Releasing' :
-                          user.role === 'records_management' ? 'Records Management' :
-                          user.role === 'evaluator' ? 'Evaluator' :
-                          user.role === 'registrar' ? 'Registrar Officer' : user.role
-                        ) : null;
+                        let roleBadge = user ? getAuditRoleLabel(user.role) : null;
                         if (!roleBadge) {
                           if (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')) roleBadge = 'Receiver / Releasing';
                           else if (ticket.assignedTo.toLowerCase().includes('ronald')) roleBadge = 'Records Management';

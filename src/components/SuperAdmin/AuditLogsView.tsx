@@ -56,10 +56,10 @@ export const AuditLogsView: React.FC = () => {
       l.id,
       `"${l.timestamp}"`,
       `"${l.actorName}"`,
-      `"${l.actorRole}"`,
+      `"${getAuditRoleLabel(l.actorRole)}"`,
       `"${l.category}"`,
       `"${l.action}"`,
-      `"${l.details.replace(/"/g, '""')}"`,
+      `"${formatAuditStageDetails(l.details).replace(/"/g, '""')}"`,
       `"${l.severity}"`,
       `"${l.ipAddress || '127.0.0.1'}"`,
     ]);

@@ -124,7 +124,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const performWorkflow = async (action: () => Promise<void>) => {
     if (workflowSaving) return;
     if (!canOperateWorkflow) {
-      setStaffError('Only the currently assigned handler or Super Admin can change this workflow.');
+      setStaffError('Only the currently assigned handler or a Registrar Officer can change this workflow.');
       return;
     }
     setWorkflowSaving(true);
@@ -185,7 +185,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       if (user.role === 'receiver') return 'Receiver / Releasing';
       if (user.role === 'records_management') return 'Records Management';
       if (user.role === 'evaluator') return 'Evaluator';
-      if (user.role === 'registrar' || user.role === 'superadmin') return 'University Registrar';
+      if (user.role === 'registrar' || user.role === 'superadmin') return 'Registrar Officer';
       if (user.role === 'admin') return 'Admin';
       return user.role;
     }
@@ -193,7 +193,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   };
 
   const getMissingStaffError = (role: string) =>
-    `No active ${role} account is available. Ask a Super Admin to create or activate a ${role} account in User Management before handing off this ticket.`;
+    `No active ${role} account is available. Ask a Registrar Officer to create or activate a ${role} account in User Management before handing off this ticket.`;
 
   const passToStaff = (
     staff: typeof receiverUser,

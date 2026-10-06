@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import { hasRegistrarAccess } from './registrarAccess';
 
 type Data = Record<string, unknown>;
 export type WorkflowActor = { accountId: string; accountRole: string; name: string; email: string };
@@ -85,7 +86,7 @@ export async function performTicketWorkflow(
   let target = typeof input.targetStage === 'string' ? input.targetStage : stage;
   let updated: Data = { ...previous };
   if (action === 'reopen') {
-    if (actor.accountRole !== 'superadmin') throw new WorkflowError(403, 'Only Super Admin can reopen requests.');
+    if (!hasRegistrarAccess(actor.accountRole)) throw new WorkflowError(403, 'Only Registrar Officers can reopen requests.');
     if (!finished && previous.status !== 'rejected') throw new WorkflowError(400, 'Only completed or rejected requests can be reopened.');
     requireReason(reason);
     if (input.confirmed !== true) throw new WorkflowError(400, 'Confirm reopening this request.');
@@ -103,7 +104,7 @@ export async function performTicketWorkflow(
     if (!WORKFLOW_STAGES.includes(target) || target === 'completed') throw new WorkflowError(400, 'Repair to a known, non-completed stage.');
   } else {
     if (action === 'force_close') {
-      if (actor.accountRole !== 'superadmin') throw new WorkflowError(403, 'Only Super Admin can Force Close.');
+      if (!hasRegistrarAccess(actor.accountRole)) throw new WorkflowError(403, 'Only Registrar Officers can Force Close.');
       requireReason(reason);
       if (stage !== 'ready' || previous.status === 'rejected') throw new WorkflowError(400, 'Force Close requires a Ready request that is not on hold.');
       target = 'completed';

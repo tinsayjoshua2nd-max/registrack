@@ -81,11 +81,11 @@ export const SuperAdminLayout: React.FC = () => {
                   {systemSettings.officeName || 'Office of the University Registrar'}
                 </span>
                 <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-stone-900 text-emerald-400 border border-stone-700">
-                  REGISTRAR
+                  Registrar Officer
                 </span>
               </div>
               <p className="text-[11px] text-stone-500 hidden sm:block">
-                University Registrar Executive & Institutional Oversight
+                Registrar Officer & Institutional Oversight
               </p>
             </div>
           </div>
@@ -113,7 +113,7 @@ export const SuperAdminLayout: React.FC = () => {
                 onClick={() => setShowNotifs(!showNotifs)}
                 aria-label="Institutional notifications"
                 className="relative min-h-11 min-w-11 p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer border border-stone-200 flex items-center justify-center"
-                title="Super Admin Notifications & Real-Time Arrival"
+                title="Registrar Officer Notifications & Real-Time Arrival"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -213,7 +213,7 @@ export const SuperAdminLayout: React.FC = () => {
                     </p>
                     <KeyRound className="w-3 h-3 text-stone-400 group-hover:text-emerald-600 shrink-0" />
                   </div>
-                  <p className="text-[10px] text-stone-500 font-medium">University Registrar</p>
+                  <p className="text-[10px] text-stone-500 font-medium">Registrar Officer</p>
                 </div>
               </button>
 

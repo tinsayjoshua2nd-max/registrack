@@ -1,3 +1,5 @@
+import { hasRegistrarAccess } from './registrarAccess';
+
 type RecordData = Record<string, unknown>;
 type Viewer = { accountRole: string; studentId?: string };
 const objects = (value: unknown): RecordData[] =>
@@ -13,13 +15,13 @@ const INTAKE_FIELDS = ['id', 'studentId', 'name', 'email', 'phone', 'degreeProgr
 export function projectAccounts(viewer: Viewer, values: unknown): RecordData[] {
   if (viewer.accountRole === 'student') return [];
   return objects(values)
-    .filter(record => viewer.accountRole === 'superadmin' || record.role !== 'student')
-    .map(record => pick(record, viewer.accountRole === 'superadmin' ? ACCOUNT_FIELDS : STAFF_FIELDS));
+    .filter(record => hasRegistrarAccess(viewer.accountRole) || record.role !== 'student')
+    .map(record => pick(record, hasRegistrarAccess(viewer.accountRole) ? ACCOUNT_FIELDS : STAFF_FIELDS));
 }
 
 export function projectStudents(viewer: Viewer, values: unknown, accounts: unknown, tickets: unknown): RecordData[] {
   if (viewer.accountRole === 'student') return [];
-  if (viewer.accountRole === 'superadmin') return objects(values).map(record => pick(record, STUDENT_FIELDS));
+  if (hasRegistrarAccess(viewer.accountRole)) return objects(values).map(record => pick(record, STUDENT_FIELDS));
   // Assemble the intake fallback in the response only. Never repair stored profiles here.
   const profiles = new Map(objects(values).map(record => [String(record.studentId), { ...record }]));
   for (const account of objects(accounts).filter(record => record.role === 'student' && record.studentId)) {

@@ -102,7 +102,7 @@ export const StaffStudentAccountForm: React.FC = () => {
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-white px-4 py-2 text-xs font-bold text-emerald-900 transition-colors hover:bg-emerald-50"
         >
           <UserPlus className="h-4 w-4" />
-          Create student account
+          Register New Student Profile
         </button>
       </div>
 

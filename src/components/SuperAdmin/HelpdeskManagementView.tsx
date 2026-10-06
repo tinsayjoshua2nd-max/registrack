@@ -3,6 +3,7 @@ import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketPriority, TicketStatus } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
 import { getTicketStageLabel, getTicketMilestoneLabel } from '../../utils/ticketLabels';
+import { isTicketAssignedToAccount } from '../../utils/ticketQueue';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import { TicketDetailAdminModal } from '../AdminPortal/TicketDetailAdminModal';
 import {
@@ -27,6 +28,7 @@ import {
 export const HelpdeskManagementView: React.FC = () => {
   const {
     tickets,
+    currentUser,
     users,
     stats,
     reassignTicket,
@@ -92,19 +94,12 @@ export const HelpdeskManagementView: React.FC = () => {
   };
 
   const myAssignedTicketsCount = tickets.filter(
-    (t) =>
-      t.assignedTo.toLowerCase().includes('alexander') ||
-      t.assignedTo.toLowerCase().includes('reyes') ||
-      t.assignedTo.toLowerCase().includes('registrar')
+    (ticket) => isTicketAssignedToAccount(ticket, currentUser)
   ).length;
 
   const filteredTickets = tickets.filter((t) => {
     if (assignedFilter === 'me') {
-      const isAssignedToMe =
-        t.assignedTo.toLowerCase().includes('alexander') ||
-        t.assignedTo.toLowerCase().includes('reyes') ||
-        t.assignedTo.toLowerCase().includes('registrar');
-      if (!isAssignedToMe) return false;
+      if (!isTicketAssignedToAccount(t, currentUser)) return false;
     }
     if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
@@ -273,13 +268,14 @@ export const HelpdeskManagementView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setAssignedFilter(assignedFilter === 'all' ? 'me' : 'all')}
+              onClick={() => setAssignedFilter(current => current === 'all' ? 'me' : 'all')}
+              aria-pressed={assignedFilter === 'me'}
               className={`px-3 py-1.5 text-xs rounded-xl font-bold border transition-colors flex items-center gap-1.5 cursor-pointer ${
                 assignedFilter === 'me'
                   ? 'bg-emerald-800 text-white border-emerald-900 shadow-2xs'
                   : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
               }`}
-              title="Show only document requests assigned to the Registrar"
+              title="Show only document requests assigned to your account"
             >
               <User className="w-3.5 h-3.5" />
               <span>Assigned to Me ({myAssignedTicketsCount})</span>

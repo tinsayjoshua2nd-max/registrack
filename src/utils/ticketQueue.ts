@@ -17,6 +17,15 @@ export function isPriorityActionTicket(ticket: Pick<Ticket, 'priority' | 'status
   return isActiveTicket(ticket) && (priority === 'Urgent' || priority === 'Deadline-sensitive');
 }
 
+export function isTicketAssignedToAccount(
+  ticket: Pick<Ticket, 'assignedTo'>,
+  account: { name: string } | null,
+): boolean {
+  const name = account?.name.trim().toLowerCase();
+  return !!name && typeof ticket.assignedTo === 'string' &&
+    ticket.assignedTo.trim().toLowerCase() === name;
+}
+
 export function getStaffVisibleTickets(
   tickets: Ticket[],
   account: { name: string; role: string; staffRole?: string } | null,

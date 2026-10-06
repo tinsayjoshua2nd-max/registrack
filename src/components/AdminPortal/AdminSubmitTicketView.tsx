@@ -5,7 +5,6 @@ import {
   FileText,
   User,
   Hash,
-  GraduationCap,
   Mail,
   Phone,
   Calendar,
@@ -432,17 +431,6 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <p className="text-xs text-stone-500">
                   Search an existing student record or enter the walk-in student’s details. An account is not required to file a request.
                 </p>
-              </div>
-
-              {/* Student account provisioning is restricted to the Registrar. */}
-              <div className="flex items-center gap-2">
-                <div
-                  role="note"
-                  className="px-3.5 py-2 rounded-xl font-heading font-bold text-xs text-stone-700 bg-stone-100 border border-stone-200 flex items-center gap-1.5 shrink-0 max-w-xs"
-                >
-                  <GraduationCap className="w-4 h-4" />
-                  <span>Only the Registrar can create student accounts in Student Records.</span>
-                </div>
               </div>
             </div>
 

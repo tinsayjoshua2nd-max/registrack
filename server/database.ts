@@ -1,8 +1,9 @@
 import { Pool, type PoolClient } from 'pg';
 import { env } from 'node:process';
+import { getDatabaseConnectionString } from './databaseConfig';
 
 const pool = new Pool({
-  connectionString: env.SUPABASE_DATABASE_URL || env.DATABASE_URL,
+  connectionString: getDatabaseConnectionString(env),
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,

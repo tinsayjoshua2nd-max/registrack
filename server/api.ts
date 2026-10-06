@@ -2,6 +2,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from 'node:process';
 import type { NextFunction, Request, Response } from 'express';
 import { withTransaction, pool } from './database';
+import { requireDatabaseConnectionString } from './databaseConfig';
 import { normalizeTicketPriority } from '../src/utils/ticketQueue';
 import { projectAccounts, projectStudents } from './rolePayload';
 import { hasRegistrarAccess } from './registrarAccess';
@@ -919,11 +920,7 @@ function limitAccountAttempts(
 }
 
 export async function initializeApi(): Promise<void> {
-  if (!env.DATABASE_URL) {
-    if (!env.SUPABASE_DATABASE_URL) {
-      throw new Error('No database connection is configured. Set SUPABASE_DATABASE_URL or connect the Replit PostgreSQL database.');
-    }
-  }
+  requireDatabaseConnectionString(env);
   await pool.query('SELECT 1');
   await ensureBootstrapAccount();
 }

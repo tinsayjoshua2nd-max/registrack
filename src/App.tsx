@@ -13,7 +13,6 @@ import { OfficerRequestHistoryView } from './components/AdminPortal/OfficerReque
 import { SuperAdminLayout } from './components/SuperAdmin/SuperAdminLayout';
 import {
   GraduationCap,
-  ShieldCheck,
   Building,
   Phone,
   Mail,
@@ -85,13 +84,6 @@ const AppContent: React.FC = () => {
                 <span className="font-heading font-bold text-lg text-white">
                   RegisTrack
                 </span>
-              </div>
-              <p className="text-emerald-200/80 text-xs leading-relaxed">
-                Dedicated to improving the efficiency and accessibility of registrar services through online ticket monitoring, real-time document release tracking, and direct student communication.
-              </p>
-              <div className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>ISO 9001:2015 Certified Records Office</span>
               </div>
             </div>
 

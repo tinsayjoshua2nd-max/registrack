@@ -750,9 +750,15 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
 }
 
 function redactStudentHistorySnapshot(record: Record<string, unknown>): Record<string, unknown> {
+  const {
+    reason: _reason,
+    notes: _notes,
+    deletedByOfficerEmail: _deletedByOfficerEmail,
+    ...safeRecord
+  } = record;
   return isObject(record.ticketSnapshot)
-    ? { ...record, ticketSnapshot: redactStudentTicket(record.ticketSnapshot) }
-    : record;
+    ? { ...safeRecord, ticketSnapshot: redactStudentTicket(record.ticketSnapshot) }
+    : safeRecord;
 }
 
 async function ensureBootstrapAccount(): Promise<void> {

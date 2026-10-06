@@ -174,7 +174,8 @@ export async function performTicketWorkflow(
     timestamp: updated.updatedAt, dateStr: new Date().toLocaleDateString('en-US'),
     exactTime: new Date().toLocaleTimeString('en-US'), read: false, audience: 'student',
     recipientStudentId: updated.studentId, ticketNumber: updated.ticketNumber,
-    type: target === 'ready' || target === 'completed' ? 'release_ready' : 'status_update',
+    type: (action === 'stage' || action === 'force_close') &&
+      (target === 'ready' || target === 'completed') ? 'release_ready' : 'status_update',
   }, ...notifications]);
   return updated;
 }

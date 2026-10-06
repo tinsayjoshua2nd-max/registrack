@@ -70,6 +70,7 @@ const fixtureTickets = [
   ticket('notify-repair', 'receiver', 'ZZ-TEST-legacy-stage'),
   ticket('notify-force-close', 'receiver', 'ready'),
   ticket('notify-ready', 'receiver', 'for_seal'),
+  ticket('notify-ready-handoff', 'receiver', 'ready'),
   ticket('notify-completion', 'receiver', 'ready'),
 ];
 const initialCompletedHistory = [{
@@ -84,11 +85,24 @@ const initialCompletedHistory = [{
     completionNotes: 'ZZ-TEST-history-completion-note',
   },
 }];
+const initialDeletedHistory = [{
+  id: 'ZZ-TEST-deleted-history',
+  ticketId: 'ZZ-TEST-privacy',
+  ticketNumber: 'ZZ-TEST-privacy',
+  studentId: '90000001',
+  reason: 'ZZ-TEST-deletion-reason',
+  notes: 'ZZ-TEST-deletion-note',
+  deletedByOfficerEmail: 'zz-test-officer@zz-test.invalid',
+  ticketSnapshot: {
+    ...fixtureTickets.find((item) => item.id === 'ZZ-TEST-privacy'),
+  },
+}];
 const initial: Record<string, unknown> = {
   tickets: fixtureTickets, studentRecords: [student('90000001', 'ZZ-TEST-student'), student('90000002', 'ZZ-TEST-other_student')],
   roles: INITIAL_ROLES, requestCategories: INITIAL_REQUEST_CATEGORIES,
   systemSettings: { ...DEFAULT_SYSTEM_SETTINGS, maintenanceMode: false, maxPendingPerStudent: 100 },
-  auditLogs: [], systemActivities: [], notifications: [], announcements: [], deletedRequestsHistory: [],
+  auditLogs: [], systemActivities: [], notifications: [], announcements: [],
+  deletedRequestsHistory: initialDeletedHistory,
   completedRequestsHistory: initialCompletedHistory,
 };
 for (const [key, payload] of Object.entries(initial)) {
@@ -162,6 +176,7 @@ try {
         assert.deepEqual(boot.body.user.permissions, ['all']);
         for (const key of Object.keys(initial)) assert(data[key] !== undefined, `Registrar Officer resource ${key}`);
         assert.equal(data.tickets.length, fixtureTickets.length);
+        assert.deepEqual(data.deletedRequestsHistory, initialDeletedHistory);
         assert.deepEqual(data.completedRequestsHistory, initialCompletedHistory);
         assert.equal(data.studentRecords[0].unitsEnrolled, 18);
         assert(data.users.every((u: any) => u.email && u.departmentOrOffice && u.lastLogin && u.createdAt));
@@ -172,6 +187,7 @@ try {
         assert.deepEqual(data.auditLogs, []); assert.deepEqual(data.systemActivities, []);
         assert(data.studentRecords.every((s: any) => !('unitsEnrolled' in s) && !('enrollmentStatus' in s)));
         if (role === 'receiver') {
+          assert.deepEqual(data.deletedRequestsHistory, initialDeletedHistory);
           assert.deepEqual(data.completedRequestsHistory, initialCompletedHistory);
           const own = data.studentRecords.find((s: any) => s.studentId === '90000001');
           for (const field of ['id','name','studentId','email','phone','degreeProgram','yearLevel']) assert(own[field]);
@@ -202,6 +218,13 @@ try {
     assert(studentTicket.timelineHistory.every((event: any) =>
       event.action === 'reject' || !('notes' in event)));
     assert.deepEqual(studentState.completedRequestsHistory, []);
+    const studentDeletedRecord = studentState.deletedRequestsHistory.find(
+      (record: any) => record.id === 'ZZ-TEST-deleted-history',
+    );
+    assert(studentDeletedRecord, 'Student retains the permitted deletion-history entry.');
+    assert(!('reason' in studentDeletedRecord));
+    assert(!('notes' in studentDeletedRecord));
+    assert(!('deletedByOfficerEmail' in studentDeletedRecord));
 
     const studentBootstrap = await request('student', '/api/bootstrap');
     assert.equal(studentBootstrap.status, 200);
@@ -213,18 +236,23 @@ try {
       'ZZ-TEST-history-root-note',
       'ZZ-TEST-history-completion-note',
       'ZZ-TEST-officer@zz-test.invalid',
+      'ZZ-TEST-deletion-reason',
+      'ZZ-TEST-deletion-note',
+      'zz-test-officer@zz-test.invalid',
     ]) assert(!serializedStudentPayloads.includes(marker), `Student payload leaked ${marker}`);
 
     const receiverState = await state('receiver');
     const receiverTicket = receiverState.tickets.find((entry: any) => entry.id === ticketId);
     assert(receiverTicket.timelineHistory.some((event: any) => event.notes === 'ZZ-TEST-timeline-staff-note'));
     assert.equal(receiverTicket.completionNotes, 'ZZ-TEST-completion-note');
+    assert.deepEqual(receiverState.deletedRequestsHistory, initialDeletedHistory);
     assert.deepEqual(receiverState.completedRequestsHistory, initialCompletedHistory);
     for (const role of ['registrar', 'superadmin']) {
       const privilegedState = await state(role);
       const privilegedTicket = privilegedState.tickets.find((entry: any) => entry.id === ticketId);
       assert(privilegedTicket.timelineHistory.some((event: any) => event.notes === 'ZZ-TEST-timeline-staff-note'));
       assert.equal(privilegedTicket.completionNotes, 'ZZ-TEST-completion-note');
+      assert.deepEqual(privilegedState.deletedRequestsHistory, initialDeletedHistory);
       assert.deepEqual(privilegedState.completedRequestsHistory, initialCompletedHistory);
     }
   });
@@ -249,6 +277,9 @@ try {
     await workflow('receiver', 'notify-handoff', 'handoff', {
       assignedTo: 'ZZ-TEST-evaluator', notes: reasons.handoff,
     });
+    await workflow('receiver', 'notify-ready-handoff', 'handoff', {
+      assignedTo: 'ZZ-TEST-evaluator', notes: reasons.handoff,
+    });
     const rejection = await workflow('receiver', 'notify-reject', 'reject', { notes: reasons.rejection });
     assert.equal(rejection.body.ticket.rejectionReason, reasons.rejection);
     await workflow('registrar', 'notify-reject', 'reopen', {
@@ -271,6 +302,7 @@ try {
       ['notify-forward', `Your request ZZ-TEST-notify-forward is now For University Seal.`, reasons.forward, 'status_update'],
       ['notify-step-back', `Your request ZZ-TEST-notify-step-back was moved back to Submitted for further processing.`, reasons.stepBack, 'status_update'],
       ['notify-handoff', `Your request ZZ-TEST-notify-handoff is now being handled by another staff member.`, reasons.handoff, 'status_update'],
+      ['notify-ready-handoff', `Your request ZZ-TEST-notify-ready-handoff is now being handled by another staff member.`, reasons.handoff, 'status_update'],
       ['notify-reject', reasons.rejection, reasons.rejection, 'status_update'],
       ['notify-reject', `Your request ZZ-TEST-notify-reject has been reopened for further processing.`, reasons.reopen, 'status_update'],
       ['notify-repair', `Your request ZZ-TEST-notify-repair was updated.`, reasons.repair, 'status_update'],
@@ -395,10 +427,13 @@ try {
     const evaluatorState = await state('evaluator');
     assert(evaluatorState.tickets.some((t: any) => t.id === 'ZZ-TEST-odd'));
     await workflow('records_management', 'odd', 'stage', { targetStage: 'for_seal' }, 403);
-    await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' }, 400);
     await workflow('receiver', 'evaluator', 'stage', { targetStage: 'for_seal' }, 403);
     await workflow('receiver', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true }, 403);
     await workflow('superadmin', 'odd', 'reopen', { notes: 'ZZ-TEST-resume', confirmed: true });
+    const advanced = await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' });
+    assert.equal(advanced.body.ticket.stage, 'for_seal');
+    assert.equal(advanced.body.ticket.status, 'processing');
+    assert.equal(advanced.body.ticket.rejectionReason, undefined);
   });
   await check('workflow authorization: restricted staff denied; assigned Evaluator and Registrar Officers allowed', async () => {
     await workflow('receiver', 'evaluator', 'stage', { targetStage: 'for_seal' }, 403);

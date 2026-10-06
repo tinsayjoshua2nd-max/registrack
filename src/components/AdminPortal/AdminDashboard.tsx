@@ -109,7 +109,7 @@ export const AdminDashboard: React.FC = () => {
               <h3 className="font-heading font-bold text-sm text-white flex items-center gap-2">
                 Walk-in Document Intake Desk
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-400/20 text-emerald-300">
-                  Receiver / Receiving Officer
+                  Receiver / Releasing
                 </span>
               </h3>
               <p className="text-xs text-stone-300">

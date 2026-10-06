@@ -394,7 +394,7 @@ export const Navbar: React.FC = () => {
                 <span>Admin Dashboard</span>
               </button>
 
-              {/* Application Form: Restricted to Receiver / Receiving Officer only */}
+              {/* Application Form: Restricted to Receiver / Releasing only */}
               {canAccessApplicationForm && (
                 <button
                   id="nav-admin-submit-ticket"

@@ -60,7 +60,7 @@ export const OfficerRequestHistoryView: React.FC = () => {
 
   const getOfficerBadgeLabel = () => {
     if (isRegistrar) return 'Office of the University Registrar Desk';
-    if (officerRole === 'receiver') return 'Receiver / Receiving Officer Desk';
+    if (officerRole === 'receiver') return 'Receiver / Releasing Desk';
     if (officerRole === 'records_management') return 'Records Management Office Desk';
     if (officerRole === 'evaluator') return 'Academic Evaluator Office Desk';
     return currentUser?.adminRoleTitle || 'Registrar Officer Desk';

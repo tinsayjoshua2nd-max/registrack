@@ -6,12 +6,37 @@ interface, an Express API, PostgreSQL storage, and server-side account sessions.
 ## Requirements
 
 - Node.js 24 and npm (matching the Replit runtime).
-- PostgreSQL 16 for local development.
+- PostgreSQL 16 for local development, or a configured Supabase PostgreSQL database.
 - A configured database containing the RegisTrack schema.
 
 Install the locked dependency versions with `npm ci`. The npm lockfile uses public
 registry tarball URLs; no Replit-internal registry is required outside Replit.
 On Replit, the configured package firewall still controls dependency installation.
+
+## Run in VS Code with Supabase
+
+RegisTrack's backend is Node.js with Express. The Express server also serves the
+React interface, so one development server runs the whole application.
+
+1. Install Node.js 24 and open this project folder in VS Code. In the integrated
+   terminal, confirm `node -v` reports version 24.
+2. Run `npm run setup:vscode`. This creates `.env` from `.env.example` if needed
+   and installs the locked dependencies. It never overwrites an existing `.env`.
+3. Open `.env` and set `SUPABASE_DATABASE_URL` to the PostgreSQL URI from your
+   Supabase project under **Connect → Session pooler**. Use the URI as provided,
+   including its port (normally `5432`); do not use a Supabase API key. If your
+   database password contains URL-reserved characters, URL-encode them.
+4. Start the app by pressing **F5** and choosing **Run RegisTrack**, or run
+   `npm run dev` in the integrated terminal. Both commands load `.env`
+   automatically.
+5. Open `http://localhost:5000` and sign in with your existing Registrar account.
+   Press **Ctrl+C** in the terminal to stop the server.
+
+The existing Supabase database already has the RegisTrack schema and first
+Registrar account. Do not run either database initializer for this database.
+The Replit secret is not included in a download; `.env` is local, ignored by Git,
+and must remain private. The supplied VS Code configuration never writes the
+connection string into project source files.
 
 ## Run on Replit
 
@@ -55,8 +80,9 @@ hook**. It:
    `node --env-file=.env --import tsx server/index.ts`.
    If variables are already exported, use `npm run dev`.
 
-The server does not automatically load `.env` or `.env.local`. Node's explicit
-`--env-file` option is used above; Replit injects its configured environment.
+Node does not load `.env` by default. Use the explicit `--env-file` commands
+above for local setup; `npm run dev` and the VS Code launch configuration load
+`.env` for you. Replit injects its configured environment.
 
 At startup, the existing server checks the database and creates the first
 Registrar only if no `superadmin` account exists. It does not create tables.

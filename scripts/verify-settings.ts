@@ -1,9 +1,13 @@
 // Refuses all targets except the dedicated, empty disposable PostgreSQL.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
+import { build } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { pool } from '../server/database';
 import { registerApi } from '../server/api';
 import { hashPassword, createSessionToken, hashSessionToken } from '../server/security';
@@ -60,8 +64,24 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json());
 registerApi(app);
-const vite = await createViteServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: 'spa' });
-app.use(vite.middlewares);
+const cacheDir = await mkdtemp(join(tmpdir(), 'zztest-settings-vite-'));
+const outDir = join(cacheDir, 'dist');
+await build({
+  configFile: false,
+  cacheDir: join(cacheDir, 'cache'),
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': process.cwd() } },
+  build: { outDir, emptyOutDir: true },
+  logLevel: 'warn',
+});
+app.use(express.static(outDir));
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+    res.sendFile(join(outDir, 'index.html'));
+  } else {
+    next();
+  }
+});
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = (error as { statusCode?: number }).statusCode || 500;
   res.status(status).json({ error: 'Verification server rejected the request.' });
@@ -100,6 +120,7 @@ const check = async (name: string, work: () => Promise<void>) => {
   catch (error) { console.error(`FAIL ${name}`); throw error; }
 };
 try {
+  if (!process.argv.includes('--browser-only')) {
   await check('public registration availability exposes only its boolean', async () => {
     const result = await request('/api/registration-options');
     assert.equal(result.status, 200);
@@ -195,6 +216,7 @@ try {
     assert.equal(JSON.stringify((await state()).systemSettings), before);
     await setSettings({ maxPendingTicketsPerStaff: 2 });
   });
+  }
   await verifySettingsBrowser({ base, password, names, profiles, initialSettings, check });
   await check('official records and existing fixture tickets remain unchanged', async () => {
     assert.equal(JSON.stringify((await pool.query("SELECT payload,version FROM registrack_data WHERE key='studentRecords'")).rows), studentRecordsBefore);
@@ -206,7 +228,7 @@ try {
   console.log(`All ${checks} settings verification checks passed.`);
 } finally {
   await pool.query("UPDATE registrack_data SET payload=$1::jsonb WHERE key='systemSettings'", [JSON.stringify(initialSettings)]);
-  await vite.close();
+  await rm(cacheDir, { recursive: true, force: true });
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await pool.end();
 }

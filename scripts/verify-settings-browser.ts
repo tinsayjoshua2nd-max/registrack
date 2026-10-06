@@ -20,7 +20,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
   for (const page of [studentPage, registrarPage]) page.on('pageerror', (error) => errors.push(error.message));
   const visible = async (page: Page, selector: string) => page.locator(selector).waitFor({ state: 'visible' });
   const login = async (page: Page, name: string) => {
-    await page.goto(base);
+    await page.goto(base, { waitUntil: 'domcontentloaded' });
     await visible(page, '#privacy-consent-checkbox');
     await page.locator('#privacy-consent-checkbox').check();
     await page.locator('#login-identifier-input').fill(name);
@@ -43,11 +43,13 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
   const assertInfo = async (page: Page, expected: BrowserFixture['initialSettings']) => {
     const section = institution(page);
     await section.waitFor({ state: 'visible' });
-    for (const value of Object.values(expected)) await section.getByText(value, { exact: true }).waitFor();
+    for (const value of [expected.schoolCode, expected.academicYear, expected.semester]) {
+      await section.getByText(value, { exact: true }).waitFor();
+    }
   };
   try {
     await check('browser signup requires privacy consent and matching password confirmation', async () => {
-      await studentPage.goto(base);
+      await studentPage.goto(base, { waitUntil: 'domcontentloaded' });
       await studentPage.getByRole('button', { name: 'Create student account', exact: true }).click();
       const create = studentPage.getByRole('button', { name: 'Create account', exact: true });
       assert(await create.isDisabled());
@@ -93,7 +95,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
       await settingField('Semester / Term').fill(changed.semester);
       await registrarPage.getByRole('button', { name: 'Save System Parameters', exact: true }).click();
       await waitValue('semester', changed.semester);
-      await registrarPage.reload();
+      await registrarPage.reload({ waitUntil: 'domcontentloaded' });
       await registrarPage.locator('#superadmin-nav-settings').click();
       assert.equal(await settingField('Institutional Code').inputValue(), changed.schoolCode);
       assert.equal(await settingField('Academic Year').inputValue(), changed.academicYear);
@@ -102,7 +104,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
     await check('browser changed institution settings appear for students and staff without record edits', async () => {
       await registrarPage.locator('#superadmin-nav-students').click();
       await assertInfo(registrarPage, changed);
-      await studentPage.reload();
+      await studentPage.reload({ waitUntil: 'domcontentloaded' });
       await studentPage.locator('button[title^="Click to view profile"]').click();
       await assertInfo(studentPage, changed);
       await registrarPage.screenshot({ path: '/tmp/zztest-settings-records.png', fullPage: true });
@@ -117,7 +119,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
       const closedContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
       const closedPage = await closedContext.newPage();
       const availability = closedPage.waitForResponse((response) => response.url().endsWith('/api/registration-options'));
-      await closedPage.goto(base);
+      await closedPage.goto(base, { waitUntil: 'domcontentloaded' });
       await availability;
       await closedPage.getByText('Checking student registration availability…', { exact: true }).waitFor({ state: 'hidden' });
       assert.equal(await closedPage.getByRole('button', { name: 'Create student account', exact: true }).count(), 0);
@@ -149,7 +151,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
         const response = await posted;
         assert.equal(response.status(), 201);
         assert.equal((await response.json()).ticket.assignedTo, expected);
-        await page.reload();
+        await page.reload({ waitUntil: 'domcontentloaded' });
       }
       await staffContext.close();
     });

@@ -1,0 +1,49 @@
+Do these items ONE AT A TIME. Do NOT modify server/. Do not change stored values or
+existing records. After each item run `npm run lint` once; if it fails, stop and report.
+ZZ-TEST records only. Report files touched per item.
+
+ITEM 1: NEWEST FIRST (display only)
+- SuperAdminDashboard.tsx: `filteredActivities` (~L34) and AuditLogsView.tsx:
+  `filteredLogs` (~L37) show storage order (oldest first). Sort a COPY by
+  Date.parse(timestamp) descending. Entries whose timestamp cannot be parsed keep their
+  stored order relative to each other and go AFTER the parsed ones. Never mutate state.
+- The Audit Trail CSV export (~L55) must use the same sorted list.
+- Add one shared helper (e.g. in src/utils/) so both screens use the same sort.
+
+ITEM 2: PRIORITY LABELS (display only)
+Stored values 'Normal', 'Urgent', 'Deadline-sensitive' and the sort in ticketQueue.ts
+stay EXACTLY as they are. Add getPriorityLabel(priority) and a short-name variant in
+src/utils/ticketLabels.ts:
+  Normal             -> "Standard (3 to 15 working days)"   short: "Standard"
+  Urgent             -> "Priority (on call)"                 short: "Priority"
+  Deadline-sensitive -> "Deadline sensitive (within the day)" short: "Deadline sensitive"
+Use the full label in these selects/buttons (keep the option VALUES unchanged and keep
+the order Normal, Urgent, Deadline-sensitive):
+  AdminSubmitTicketView.tsx ~L734-735, TicketDetailAdminModal.tsx ~L530-531,
+  TicketManagementTable.tsx ~L183-184, HelpdeskManagementView.tsx ~L244-245 and ~L428.
+PriorityBadge.tsx shows the short name with the full label as a title tooltip.
+Then list every other visible "Urgent" for this field and fix it the same way, e.g.
+HelpdeskManagementView.tsx ~L195 ("Urgent Tickets"), SuperAdminDashboard.tsx ~L218
+("Urgent Tickets Pending"), AdminDashboard.tsx ~L238-243 ("Urgent & Priority Action
+Queue"). Reword counters to "Priority tickets" where they count Urgent only; tell me
+if a counter includes both Urgent and Deadline-sensitive and propose wording instead of
+guessing. Code comments don't need changes.
+
+ITEM 3: OFFICE HOURS (single source)
+Create src/data/officeInfo.ts exporting the hours once:
+  Monday to Thursday 8:00 AM - 6:00 PM, Friday 8:00 AM - 5:00 PM,
+  noon break: <FILL IN, e.g. 12:00 PM - 1:00 PM>
+Use it in: Navbar.tsx ~L89, LoginPage.tsx ~L60, App.tsx footer ~L110-115,
+src/data/mockData.ts ~L66 (claiming hours FAQ), StudentOverview.tsx ~L274-277
+(check whether this component is used; if unused, still keep it consistent).
+The text must mention the noon break everywhere, and "(No Noon Break)" must not
+appear anywhere. If the noon-break time above is still a placeholder, STOP and ask me.
+
+ITEM 4 (tiny leftover): TicketDetailAdminModal.tsx ~L656: for non-rejected tickets,
+replace `normalizedStage.replace('_', ' ')` with getTicketStageLabel(ticket.stage).
+Keep the existing styling. Nothing else in that file.
+
+ITEM 5 (QUESTION ONLY, DO NOT CHANGE): updateTicketPrioritySuperAdmin in
+HelpdeskContext.tsx (~L1693) edits priority in local state and writes its own audit
+entry, while updateTicketPriority uses PATCH /api/tickets/:id/priority. Where is each
+used, and does the Super Admin path actually persist? Report only.

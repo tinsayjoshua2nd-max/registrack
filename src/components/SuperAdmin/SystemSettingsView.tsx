@@ -87,16 +87,18 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
                   <span>Institutional Code</span>
-                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
-                    Not connected yet
+                  <span
+                    title="You can edit and save this value, but no other part of the system uses it yet."
+                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
+                  >
+                    Saved only - not used yet
                   </span>
                 </label>
                 <input
                   type="text"
                   value={settings.schoolCode}
-                  disabled
                   onChange={(e) => setSettings({ ...settings, schoolCode: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
                 />
               </div>
 
@@ -129,32 +131,36 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
                   <span>Academic Year</span>
-                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
-                    Not connected yet
+                  <span
+                    title="You can edit and save this value, but no other part of the system uses it yet."
+                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
+                  >
+                    Saved only - not used yet
                   </span>
                 </label>
                 <input
                   type="text"
                   value={settings.academicYear}
-                  disabled
                   onChange={(e) => setSettings({ ...settings, academicYear: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
                 />
               </div>
 
               <div>
                 <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
                   <span>Semester / Term</span>
-                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
-                    Not connected yet
+                  <span
+                    title="You can edit and save this value, but no other part of the system uses it yet."
+                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
+                  >
+                    Saved only - not used yet
                   </span>
                 </label>
                 <input
                   type="text"
                   value={settings.semester}
-                  disabled
                   onChange={(e) => setSettings({ ...settings, semester: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
                 />
               </div>
             </div>
@@ -187,8 +193,11 @@ export const SystemSettingsView: React.FC = () => {
             <div>
               <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
                 <span>Max Pending Tickets Per Evaluator</span>
-                <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
-                  Not connected yet
+                <span
+                  title="You can edit and save this value, but no other part of the system uses it yet."
+                  className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
+                >
+                  Saved only - not used yet
                 </span>
               </label>
               <input
@@ -196,12 +205,11 @@ export const SystemSettingsView: React.FC = () => {
                 min={1}
                 max={50}
                 value={settings.maxPendingTicketsPerStaff}
-                disabled
                 onChange={(e) => setSettings({ ...settings, maxPendingTicketsPerStaff: Number(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
               />
               <p className="text-[10px] text-stone-500 mt-1">
-                Prevents staff burnout; additional tickets queue in central pending pool.
+                Saved for future use. Tickets are not limited by this number yet.
               </p>
             </div>
 
@@ -209,20 +217,22 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <p className="flex flex-wrap items-center gap-2 font-bold text-stone-900">
                   <span>Open Student Self-Registration</span>
-                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
-                    Not connected yet
+                  <span
+                    title="You can edit and save this value, but no other part of the system uses it yet."
+                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
+                  >
+                    Saved only - not used yet
                   </span>
                 </p>
                 <p className="text-[11px] text-stone-500">
-                  Allow students to register with valid 8-digit IDs on login screen.
+                  Saved for future use. The login screen does not currently offer student registration.
                 </p>
               </div>
               <input
                 type="checkbox"
                 checked={settings.allowStudentRegistration}
-                disabled
                 onChange={(e) => setSettings({ ...settings, allowStudentRegistration: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-4 h-4 accent-emerald-700 cursor-pointer"
               />
             </div>
           </div>

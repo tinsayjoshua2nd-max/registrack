@@ -6,6 +6,5 @@
 - [Student request permissions](student-request-permissions.md) — students track existing requests; request creation belongs to staff, not student accounts.
 - [Settings ownership](settings-ownership-policy.md) — current institution context, automatic evaluator capacity, and credentials-only student signup preserve official records.
 - [Disposable service lifetimes](disposable-service-lifetimes.md) — temporary infrastructure must stay owned by a long-lived background shell during verification.
-- [Isolated browser verification](isolated-browser-verification.md) — temporary production builds avoid Vite socket/cache conflicts with the running preview.
 - [Ticket-stage policy](ticket-stage-policy.md) — server-enforced adjacent transitions, reasoned step-back, legacy compatibility, and fixture-only API verification.
 - [Registrar Officer access](registrar-access-policy.md) — all Registrar Officer accounts receive privileged administration; other staff roles remain restricted.

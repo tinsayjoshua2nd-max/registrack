@@ -101,11 +101,9 @@ const AppContent: React.FC = () => {
                 Counter Releasing Windows
               </h4>
               <ul className="space-y-1.5 text-xs text-emerald-200/80">
-                <li>Window 1: Enrollment & Evaluations</li>
-                <li>Window 2: Central Records & CAV/DFA</li>
-                <li>Window 3: Official Transcript of Records (TOR)</li>
-                <li>Window 4: Certifications & Clearances</li>
-                <li>Window 5: Student RFID & Biometrics</li>
+                <li>Window 1</li>
+                <li>Window 2</li>
+                <li>Window 3</li>
               </ul>
             </div>
 

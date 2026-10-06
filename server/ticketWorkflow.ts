@@ -188,9 +188,6 @@ function studentWorkflowNotificationMessage(
 ): string {
   const ticketNumber = String(updated.ticketNumber);
   if (action === 'reject') return notes;
-  if (action === 'step_back') {
-    return `Your request ${ticketNumber} was moved back to ${studentStageLabel(target)} for further processing.`;
-  }
   if (action === 'handoff') {
     return `Your request ${ticketNumber} is now being handled by another staff member.`;
   }

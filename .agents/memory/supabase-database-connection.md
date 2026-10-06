@@ -7,4 +7,4 @@ When configured, RegisTrack uses the private `SUPABASE_DATABASE_URL` ahead of Re
 
 **Why:** The user explicitly requested Supabase for the application database, and the direct endpoint failed to connect while the session-pooler endpoint was reachable. The user also needs a safe first-time schema setup without risking existing Supabase records.
 
-**How to apply:** Keep the connection string in Replit Secrets. Use only the opt-in Supabase initializer for an empty `public` schema; never point the local-only initializer at Supabase or use the Supabase initializer to repair/migrate an existing database. Review existing Supabase schema changes independently of Replit's Publish workflow.
+**How to apply:** Keep the connection string in Replit Secrets. Use only the opt-in Supabase initializer for an empty `public` schema; never point the local-only initializer at Supabase or use the Supabase initializer to repair/migrate an existing database. Both initializers must remain manual commands, never run during app startup or post-merge setup. Review Supabase schema changes independently of Replit's Publish workflow.

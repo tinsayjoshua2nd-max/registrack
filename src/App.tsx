@@ -152,7 +152,6 @@ const AppContent: React.FC = () => {
           {/* Copyright */}
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-emerald-400/80 text-[11px]">
             <p>© 2026 Office of the University Registrar. All rights reserved.</p>
-            <p>Designed with White & Forest Green Institutional Accessibility</p>
           </div>
         </div>
       </footer>

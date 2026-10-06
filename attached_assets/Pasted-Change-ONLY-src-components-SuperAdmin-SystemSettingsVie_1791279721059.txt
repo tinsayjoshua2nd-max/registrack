@@ -1,0 +1,33 @@
+Change ONLY src/components/SuperAdmin/SystemSettingsView.tsx. Do NOT modify server/,
+HelpdeskContext.tsx, types, or defaults. Do not change stored values.
+
+Background: commit b1460bf added `disabled` and a yellow "Not connected yet" badge to
+five fields. I want to edit them again.
+
+1. Remove the `disabled` attribute (and the matching disabled:* classes) from these five
+   inputs only, so they work as before:
+   - Institutional Code (settings.schoolCode)
+   - Academic Year (settings.academicYear)
+   - Semester / Term (settings.semester)
+   - Max Pending Tickets Per Evaluator (settings.maxPendingTicketsPerStaff, keep min 1 / max 50)
+   - Open Student Self-Registration (settings.allowStudentRegistration)
+   Keep the existing onChange handlers, labels and layout (no new sideways overflow at 390px).
+
+2. Keep the yellow badge but change its text from "Not connected yet" to
+   "Saved only - not used yet" on exactly those five. Do not touch the Email
+   Notifications / SMS Alerts badges in the other card. Add a title tooltip to each
+   badge: "You can edit and save this value, but no other part of the system uses it yet."
+
+3. Under Open Student Self-Registration, change the helper text to:
+   "Saved for future use. The login screen does not currently offer student registration."
+   Under Max Pending Tickets Per Evaluator, change the helper text to:
+   "Saved for future use. Tickets are not limited by this number yet."
+
+4. Before editing, confirm with grep that none of schoolCode, academicYear, semester,
+   maxPendingTicketsPerStaff or allowStudentRegistration are read anywhere outside
+   SystemSettingsView, types, defaults and backup validation, and tell me the result.
+
+5. Test as Registrar Officer with ZZ-TEST values: edit all five, click Save System
+   Parameters, reload the page, and confirm each value persisted and an audit entry
+   "SETTINGS_UPDATED" was written. Then restore the original values. Run npm run lint
+   once; if it fails, stop and report. Report files touched.

@@ -1,0 +1,58 @@
+Three small fixes. Change only the places named. Do not touch the existing student
+timeline redaction, the safe notification messages, or any other logic. ZZ-TEST
+records only.
+
+FIX 1: stale test (scripts/verify-workflow-api.ts, check "legacy stages, reject, and
+handoff with current authorization"). The server is correct: a normal stage move
+clears a hold by design (ticketWorkflow.ts L131-132). Do NOT change the server.
+- Delete this line:
+    await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' }, 400);
+- Keep the next two lines (receiver reopen -> 403, superadmin reopen) in place.
+- AFTER the superadmin reopen line, add:
+    const advanced = await workflow('registrar', 'odd', 'stage', { targetStage: 'for_seal' });
+    assert.equal(advanced.body.ticket.stage, 'for_seal');
+    assert.equal(advanced.body.ticket.status, 'processing');
+    assert.equal(advanced.body.ticket.rejectionReason, undefined);
+(Order matters. If the registrar move came before the reopen, the reopen would
+fail with 400 because the hold would already be cleared.)
+
+FIX 2: deleted-request history leaks staff reasons to students (server/api.ts,
+function redactStudentHistorySnapshot, ~L752). It only cleans ticketSnapshot, but the
+record itself carries `reason` (staff deletion reason) and `deletedByOfficerEmail`.
+Replace the function with:
+
+function redactStudentHistorySnapshot(record: Record<string, unknown>): Record<string, unknown> {
+  const {
+    reason: _reason,
+    notes: _notes,
+    deletedByOfficerEmail: _deletedByOfficerEmail,
+    ...safeRecord
+  } = record;
+  return isObject(record.ticketSnapshot)
+    ? { ...safeRecord, ticketSnapshot: redactStudentTicket(record.ticketSnapshot) }
+    : safeRecord;
+}
+
+Before editing, grep src/ for student screens that read deletedRequestsHistory
+`reason` or `deletedByOfficerEmail` and tell me if any exist. Do not edit them.
+Test: add a deletedRequestsHistory fixture for student 90000001 with
+reason 'ZZ-TEST-deletion-reason' and deletedByOfficerEmail 'zz-test-officer@zz-test.invalid'.
+Assert neither string appears anywhere in the student's /api/state or /api/bootstrap,
+and that staff and Super Admin still see both.
+
+FIX 3: wrong notification type (server/ticketWorkflow.ts ~L177). The type is chosen
+from the target stage, so reject/handoff/repair on a Ready ticket is sent as
+'release_ready'. Replace the `type:` line with:
+
+  type: (action === 'stage' || action === 'force_close') &&
+    (target === 'ready' || target === 'completed') ? 'release_ready' : 'status_update',
+
+Change nothing else in that notification (title, message, ids, recipients).
+Test: add fixture ticket('notify-ready-handoff', 'receiver', 'ready'). Hand it off to
+ZZ-TEST-evaluator and assert the student notification type is 'status_update'.
+Also assert an existing forward move to ready still produces 'release_ready'.
+
+THEN: run `npm run lint` once. If it passes, run the whole
+scripts/verify-workflow-api.ts once, against a disposable Postgres at
+127.0.0.1:55439/registrack_temp_zztest (never the real DATABASE_URL). Report each
+check by name and the files touched. If anything fails, stop and tell me; don't retry.

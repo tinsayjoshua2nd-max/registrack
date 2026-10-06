@@ -469,7 +469,11 @@ function visibleStudentNotifications(
 }
 
 function redactStudentTicket(ticket: Record<string, unknown>): Record<string, unknown> {
-  const { createdByAccountId: _createdByAccountId, ...safeTicket } = ticket;
+  const {
+    createdByAccountId: _createdByAccountId,
+    completionNotes: _completionNotes,
+    ...safeTicket
+  } = ticket;
   return {
     ...safeTicket,
     internalNotes: [],
@@ -506,6 +510,7 @@ function scopeResourcePayload(
   }
   if (key === 'deletedRequestsHistory' || key === 'completedRequestsHistory') {
     if (account.accountRole === 'student') {
+      if (key === 'completedRequestsHistory') return [];
       return records
         .filter((record) => String(record.studentId || '') === account.studentId)
         .map(redactStudentHistorySnapshot);
@@ -737,12 +742,8 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
   state.deletedRequestsHistory = (Array.isArray(state.deletedRequestsHistory)
     ? state.deletedRequestsHistory as Record<string, unknown>[]
     : []).filter((record) => String(record.studentId || '') === account.studentId);
-  state.completedRequestsHistory = (Array.isArray(state.completedRequestsHistory)
-    ? state.completedRequestsHistory as Record<string, unknown>[]
-    : []).filter((record) => String(record.studentId || '') === account.studentId);
+  state.completedRequestsHistory = [];
   state.deletedRequestsHistory = (state.deletedRequestsHistory as Record<string, unknown>[])
-    .map(redactStudentHistorySnapshot);
-  state.completedRequestsHistory = (state.completedRequestsHistory as Record<string, unknown>[])
     .map(redactStudentHistorySnapshot);
   state._versions = versions;
   return state;

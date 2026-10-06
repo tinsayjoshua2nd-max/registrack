@@ -170,10 +170,54 @@ export async function performTicketWorkflow(
   await deps.save(client, 'tickets', tickets.map(ticket => ticket.id === id ? updated : ticket));
   await deps.save(client, 'notifications', [{
     id: `notif-${randomUUID()}`, title: action === 'reject' ? 'Action Needed' : `Request ${String(updated.ticketNumber)} Updated`,
-    message: notes, timestamp: updated.updatedAt, dateStr: new Date().toLocaleDateString('en-US'),
+    message: studentWorkflowNotificationMessage(action, target, previous.stage, updated, notes),
+    timestamp: updated.updatedAt, dateStr: new Date().toLocaleDateString('en-US'),
     exactTime: new Date().toLocaleTimeString('en-US'), read: false, audience: 'student',
     recipientStudentId: updated.studentId, ticketNumber: updated.ticketNumber,
     type: target === 'ready' || target === 'completed' ? 'release_ready' : 'status_update',
   }, ...notifications]);
   return updated;
+}
+
+function studentWorkflowNotificationMessage(
+  action: string,
+  target: string,
+  previousStage: unknown,
+  updated: Data,
+  notes: string,
+): string {
+  const ticketNumber = String(updated.ticketNumber);
+  if (action === 'reject') return notes;
+  if (action === 'step_back') {
+    return `Your request ${ticketNumber} was moved back to ${studentStageLabel(target)} for further processing.`;
+  }
+  if (action === 'handoff') {
+    return `Your request ${ticketNumber} is now being handled by another staff member.`;
+  }
+  if (action === 'reopen') {
+    return `Your request ${ticketNumber} has been reopened for further processing.`;
+  }
+  if (action === 'repair') return `Your request ${ticketNumber} was updated.`;
+  if (action === 'force_close' || target === 'completed') {
+    return `Your request ${ticketNumber} is complete.`;
+  }
+  if (target === 'ready') return `Your request ${ticketNumber} is ready for claiming.`;
+
+  const previousIndex = WORKFLOW_STAGES.indexOf(normalizeWorkflowStage(previousStage));
+  const targetIndex = WORKFLOW_STAGES.indexOf(normalizeWorkflowStage(target));
+  if (previousIndex !== -1 && targetIndex !== -1 && targetIndex < previousIndex) {
+    return `Your request ${ticketNumber} was moved back to ${studentStageLabel(target)} for further processing.`;
+  }
+  return `Your request ${ticketNumber} is now ${studentStageLabel(target)}.`;
+}
+
+function studentStageLabel(stage: string): string {
+  const labels: Record<string, string> = {
+    submitted: 'Submitted',
+    processing: 'Processing',
+    for_seal: 'For University Seal',
+    ready: 'Ready for Claiming',
+    completed: 'Completed',
+  };
+  return labels[stage] || stage;
 }

@@ -5,6 +5,7 @@ import { Ticket, TicketStage, TicketStatus, TicketPriority } from '../../types';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
 import { TimelineProgress } from '../Common/TimelineProgress';
+import { TicketHistoryPanel } from './TicketHistoryPanel';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
@@ -634,6 +635,11 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                 </h4>
                 <TimelineProgress ticket={ticket} />
               </div>
+
+              <TicketHistoryPanel
+                ticketId={ticket.id}
+                timelineHistory={ticket.timelineHistory}
+              />
 
               {/* Advance Workflow Stage & Role Handover Feature */}
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-stone-50 via-emerald-50/40 to-stone-50 border border-emerald-200 space-y-4 shadow-xs">

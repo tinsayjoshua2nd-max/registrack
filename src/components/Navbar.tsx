@@ -107,9 +107,6 @@ export const Navbar: React.FC = () => {
                 OFFICIAL
               </span>
             </div>
-            <p className="text-xs text-stone-500 font-medium hidden sm:block">
-              Registrar Helpdesk & Real-Time Request Tracking System
-            </p>
           </div>
         </div>
 

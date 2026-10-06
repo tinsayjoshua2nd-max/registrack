@@ -140,9 +140,9 @@ try {
     const account = (await pool.query("SELECT role,status,password_hash FROM registrack_accounts WHERE student_id='91000001'")).rows[0];
     assert.equal(account.role, 'student'); assert.equal(account.status, 'active'); assert.notEqual(account.password_hash, password);
   });
-  await check('Receiver rejects absent or archived records, altered identity and invalid credentials', async () => {
+  await check('Receiver rejects archived records, altered existing identity and invalid credentials', async () => {
     for (const updates of [
-      { studentId: '91000099' }, { email: 'wrong@zz-test.invalid' },
+      { email: 'wrong@zz-test.invalid' },
       { studentId: '91000004', name: profiles[3].name, email: profiles[3].email },
       { name: 'ZZ-TEST-altered-name' }, { studentId: 'short' }, { password: 'short' },
     ]) {
@@ -150,6 +150,49 @@ try {
       assert.equal((await request('/api/users', 'POST', { user: { ...input.user, ...updates } }, receiverCookie)).status, 400);
     }
     assert.equal((await pool.query("SELECT count(*)::int AS count FROM registrack_accounts WHERE role='student'")).rows[0].count, 1);
+  });
+  await check('Receiver registers a new official profile and student login atomically', async () => {
+    const record = profile('91000099', 'receiver-new');
+    const result = await request('/api/users', 'POST', { user: {
+      ...studentInput(record).user, status: 'inactive', degreeProgram: 'BS Nursing',
+      yearLevel: '3rd Year', phoneNumber: '+63 900 000 0099', enrollmentStatus: 'Irregular',
+      unitsEnrolled: 21, isArchived: true, requestCount: 999, staffRole: 'registrar',
+    } }, receiverCookie);
+    assert.equal(result.status, 201);
+    assert.equal(result.body.user.role, 'student');
+    assert.equal(result.body.user.status, 'active');
+    assert.equal(result.body.user.staffRole, undefined);
+    const stored = (await pool.query("SELECT payload FROM registrack_data WHERE key='studentRecords'")).rows[0].payload;
+    const created = stored.find((entry: any) => entry.studentId === record.studentId);
+    assert.equal(created.name, record.name); assert.equal(created.email, record.email);
+    assert.equal(created.degreeProgram, 'BS Nursing'); assert.equal(created.yearLevel, '3rd Year');
+    assert.equal(created.phone, '+63 900 000 0099'); assert.equal(created.enrollmentStatus, 'Irregular');
+    assert.equal(created.unitsEnrolled, 21); assert.equal(created.isArchived, false);
+    assert.equal(created.requestCount, 0);
+    const login = await request('/api/login', 'POST', { identifier: record.name, password });
+    assert.equal(login.status, 200);
+    assert.equal((await request('/api/tickets', 'POST', { ticket: {} }, login.cookie)).status, 403);
+  });
+  await check('failed Receiver registration creates no orphan profile or account', async () => {
+    const before = JSON.stringify((await pool.query("SELECT payload,version FROM registrack_data WHERE key='studentRecords'")).rows);
+    const record = profile('91000098', 'receiver-conflict');
+    const input = studentInput(record);
+    input.user.email = profiles[0].email;
+    assert.equal((await request('/api/users', 'POST', input, receiverCookie)).status, 409);
+    assert.equal(JSON.stringify((await pool.query("SELECT payload,version FROM registrack_data WHERE key='studentRecords'")).rows), before);
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM registrack_accounts WHERE student_id='91000098'")).rows[0].count, 0);
+    for (const updates of [{ enrollmentStatus: 'Invalid' }, { unitsEnrolled: -1 }, { degreeProgram: {} }]) {
+      assert.equal((await request('/api/users', 'POST', { user: { ...studentInput(record).user, ...updates } }, receiverCookie)).status, 400);
+    }
+  });
+  await check('concurrent Receiver registration creates one account and one profile', async () => {
+    const record = profile('91000097', 'receiver-concurrent');
+    const results = await Promise.all([request('/api/users', 'POST', studentInput(record), receiverCookie),
+      request('/api/users', 'POST', studentInput(record), receiverCookie)]);
+    assert.deepEqual(results.map((result) => result.status).sort(), [201, 409]);
+    const stored = (await pool.query("SELECT payload FROM registrack_data WHERE key='studentRecords'")).rows[0].payload;
+    assert.equal(stored.filter((entry: any) => entry.studentId === record.studentId).length, 1);
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM registrack_accounts WHERE student_id='91000097'")).rows[0].count, 1);
   });
   await check('Receiver cannot duplicate accounts, create staff, edit records, or manage other accounts', async () => {
     assert.equal((await request('/api/users', 'POST', studentInput(profiles[0]), receiverCookie)).status, 409);

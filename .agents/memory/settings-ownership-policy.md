@@ -17,6 +17,6 @@ Evaluator capacity applies to automatic assignment only, counts pending and proc
 
 Only Receiver / Releasing and Registrar Officer accounts can create student accounts. Remove public student signup; a saved self-registration flag must not restore it.
 
-**Why:** The user replaced the earlier self-registration approval with: “remove the Create student account button in the log in page, and only the RECEIVER / RELEASING and Registrar officer can create the students accounts.”
+**Why:** The user later clarified that Receiver / Releasing should have the Registrar's profile-and-account registration flow, including for students without an official record.
 
-**How to apply:** Enforce the role restriction on the server as well as the UI. Grant Receiver student-credential creation only, not staff-account creation, account management, or official-record editing. Preserve Registrar record management and staff-only ticket submission.
+**How to apply:** Enforce the role restriction on the server as well as the UI. Receiver may create a new official student profile with its login, or link a login to an existing eligible record without changing it. Do not grant Receiver staff-account creation, account management, or arbitrary existing-record editing. Preserve Registrar record management and staff-only ticket submission.

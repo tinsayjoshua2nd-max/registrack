@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { StudentProfile } from '../../types';
+import { StudentRegistrationModal } from '../Common/StudentRegistrationModal';
 import {
-  GraduationCap,
   Search,
-  Filter,
   UserPlus,
   Edit2,
   Archive,
@@ -13,21 +12,15 @@ import {
   AlertTriangle,
   X,
   FileText,
-  Mail,
-  Phone,
-  BookOpen,
-  Award,
 } from 'lucide-react';
 import { InstitutionInfo } from '../Common/InstitutionInfo';
 
 export const StudentRecordManagementView: React.FC = () => {
   const {
     studentRecords,
-    addStudentRecord,
     updateStudentRecord,
     archiveStudentRecord,
     restoreStudentRecord,
-    createUser,
     tickets,
   } = useHelpdesk();
 
@@ -38,20 +31,6 @@ export const StudentRecordManagementView: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<StudentProfile | null>(null);
   const [selectedStudentForTickets, setSelectedStudentForTickets] = useState<StudentProfile | null>(null);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  // New Student State
-  const [newStudent, setNewStudent] = useState({
-    studentId: '',
-    name: '',
-    email: '',
-    password: '',
-    phone: '',
-    degreeProgram: 'BS Computer Science',
-    yearLevel: '1st Year',
-    enrollmentStatus: 'Regular' as StudentProfile['enrollmentStatus'],
-    unitsEnrolled: 18,
-  });
 
   const filteredStudents = studentRecords.filter((s) => {
     if (s.isArchived !== filterArchived) return false;
@@ -65,57 +44,9 @@ export const StudentRecordManagementView: React.FC = () => {
     return true;
   });
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    // Validate 8 digits
-    if (!/^\d{8}$/.test(newStudent.studentId.trim())) {
-      setFormError('Student ID must be exactly 8 digits (e.g. 20241092).');
-      return;
-    }
-
-    const cleanId = newStudent.studentId.trim();
-    const cleanName = newStudent.name.trim();
-
-    if (newStudent.password.length < 8) {
-      setFormError('Set an initial password with at least 8 characters.');
-      return;
-    }
-
-    try {
-      await createUser({
-      name: cleanName,
-      email: newStudent.email.trim(),
-      role: 'student',
-      status: 'active',
-      departmentOrOffice: newStudent.degreeProgram,
-      studentId: cleanId,
-      phoneNumber: newStudent.phone.trim() || undefined,
-        password: newStudent.password,
-        degreeProgram: newStudent.degreeProgram,
-        yearLevel: newStudent.yearLevel,
-        enrollmentStatus: newStudent.enrollmentStatus,
-        unitsEnrolled: Number(newStudent.unitsEnrolled) || 0,
-      });
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Unable to create this student account.');
-      return;
-    }
-
+  const handleNewStudentCreated = (name: string) => {
     setShowAddModal(false);
-    setNewStudent({
-      studentId: '',
-      name: '',
-      email: '',
-      password: '',
-      phone: '',
-      degreeProgram: 'BS Computer Science',
-      yearLevel: '1st Year',
-      enrollmentStatus: 'Regular',
-      unitsEnrolled: 18,
-    });
-    setNotificationMsg(`Student profile ${newStudent.name} registered with 8-digit ID.`);
+    setNotificationMsg(`Student profile ${name} registered with 8-digit ID.`);
     setTimeout(() => setNotificationMsg(null), 3500);
   };
 
@@ -158,7 +89,6 @@ export const StudentRecordManagementView: React.FC = () => {
 
         <button
           onClick={() => {
-            setFormError(null);
             setShowAddModal(true);
           }}
           className="px-4 py-2.5 rounded-xl font-heading font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0"
@@ -333,182 +263,11 @@ export const StudentRecordManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* REGISTER NEW STUDENT MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-emerald-800" />
-                <h3 className="font-heading font-bold text-base text-stone-900">
-                  Register Official Student Profile
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-stone-400 hover:text-stone-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {formError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                <label className="block font-bold text-emerald-950 mb-1">
-                  Student ID (Mandatory 8 Digits) <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  maxLength={8}
-                  required
-                  placeholder="e.g. 20241098"
-                  value={newStudent.studentId}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, studentId: e.target.value.replace(/[^0-9]/g, '') })
-                  }
-                  className="w-full px-3 py-2 font-mono text-sm tracking-widest rounded-xl border border-emerald-300 focus:border-emerald-600 outline-none bg-white font-bold"
-                />
-                <p className="text-[10px] text-emerald-800 mt-1">
-                  Format strictly validated to exactly 8 numerical digits.
-                </p>
-              </div>
-
-              <div>
-                <label className="block font-bold text-stone-700 mb-1">
-                  Student Full Name <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Maria Clara Santos"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">
-                    Email Address <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="student@university.edu"
-                    value={newStudent.email}
-                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    placeholder="+63 917 000 0000"
-                    value={newStudent.phone}
-                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Degree Program</label>
-                  <select
-                    value={newStudent.degreeProgram}
-                    onChange={(e) => setNewStudent({ ...newStudent, degreeProgram: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  >
-                    <option value="BS Computer Science">BS Computer Science</option>
-                    <option value="BS Information Technology">BS Information Technology</option>
-                    <option value="BS Business Administration">BS Business Administration</option>
-                    <option value="BS Nursing">BS Nursing</option>
-                    <option value="BS Civil Engineering">BS Civil Engineering</option>
-                    <option value="BA Communication">BA Communication</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-stone-700 mb-1">Year Level</label>
-                  <select
-                    value={newStudent.yearLevel}
-                    onChange={(e) => setNewStudent({ ...newStudent, yearLevel: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                  >
-                    <option value="1st Year">1st Year</option>
-                    <option value="2nd Year">2nd Year</option>
-                    <option value="3rd Year">3rd Year</option>
-                    <option value="4th Year">4th Year</option>
-                    <option value="Graduating">Graduating</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-stone-700 mb-1">Enrollment Status</label>
-                <select
-                  value={newStudent.enrollmentStatus}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, enrollmentStatus: e.target.value as any })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                >
-                  <option value="Regular">Regular</option>
-                  <option value="Irregular">Irregular</option>
-                  <option value="Graduating">Graduating</option>
-                  <option value="Alumni">Alumni</option>
-                  <option value="On Leave">On Leave</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="new-student-password" className="block font-bold text-stone-700 mb-1">
-                  Initial Login Password <span className="text-rose-600">*</span>
-                </label>
-                <input
-                  id="new-student-password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  placeholder="At least 8 characters"
-                  value={newStudent.password}
-                  onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
-                />
-                <p className="mt-1 text-stone-500">Share this password securely with the student. It will not appear in the account list.</p>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold cursor-pointer"
-                >
-                  Save Student Record
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <StudentRegistrationModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onCreated={handleNewStudentCreated}
+      />
 
       {/* EDIT STUDENT MODAL */}
       {editingStudent && (

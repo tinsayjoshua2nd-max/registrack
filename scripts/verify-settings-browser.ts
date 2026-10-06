@@ -20,6 +20,7 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
   const receiverContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const receiverPage = await receiverContext.newPage();
   const errors: string[] = [];
+  let receiverRegistrationLabels: string[] = [];
   for (const page of [studentPage, registrarPage, receiverPage]) page.on('pageerror', (error) => errors.push(error.message));
   const login = async (page: Page, name: string) => {
     // Remote fonts/images must not delay verification of an already-interactive app.
@@ -68,27 +69,59 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
       await login(receiverPage, names.receiver);
       await receiverPage.locator('#nav-admin-submit-ticket').click();
       await receiverPage.locator('#staff-student-account-open').click();
-      await receiverPage.locator('#staff-student-record-select').selectOption(profiles[1].id);
-      assert.equal(await receiverPage.locator(`#staff-student-record-select option[value="${profiles[0].id}"]`).count(), 0,
-        'Existing login account must not be offered again');
-      assert.equal(await receiverPage.locator(`#staff-student-record-select option[value="${profiles[3].id}"]`).count(), 0,
-        'Archived record must not be offered');
-      await receiverPage.locator('#staff-student-password').fill(password);
-      await receiverPage.locator('#staff-student-confirm-password').fill(`${password}-different`);
-      await receiverPage.locator('#staff-student-account-submit').click();
-      await receiverPage.getByText('Password and confirmation do not match.', { exact: true }).waitFor();
-      await receiverPage.locator('#staff-student-confirm-password').fill(password);
+      await receiverPage.locator('#new-student-id').fill(profiles[0].studentId);
+      await receiverPage.waitForFunction(() => (document.getElementById('student-registration-submit') as HTMLButtonElement)?.disabled);
+      await receiverPage.getByRole('button', { name: 'Use a different student ID' }).click();
+      await receiverPage.locator('#new-student-id').fill(profiles[3].studentId);
+      await receiverPage.waitForFunction(() => (document.getElementById('student-registration-submit') as HTMLButtonElement)?.disabled);
+      await receiverPage.getByRole('button', { name: 'Use a different student ID' }).click();
+      await receiverPage.locator('#new-student-id').fill(profiles[1].studentId);
+      await receiverPage.waitForFunction((name) => (document.getElementById('new-student-name') as HTMLInputElement)?.value === name, profiles[1].name);
+      assert.equal(await receiverPage.locator('#new-student-name').isEditable(), false);
+      assert.equal(await receiverPage.locator('#new-student-email').isEditable(), false);
+      await receiverPage.locator('#new-student-password').fill('short');
+      await receiverPage.locator('#student-registration-submit').click();
+      assert.equal(await receiverPage.locator('#new-student-password')
+        .evaluate((element) => (element as HTMLInputElement).validity.tooShort), true);
+      await receiverPage.locator('#new-student-password').fill(password);
       await assertWidth(receiverPage, 'staff-account-modal');
       const before = JSON.stringify((await pool.query("SELECT payload,version FROM registrack_data WHERE key='studentRecords'")).rows);
       const created = receiverPage.waitForResponse((response) => response.url().endsWith('/api/users') && response.request().method() === 'POST');
-      await receiverPage.locator('#staff-student-account-submit').click();
+      await receiverPage.locator('#student-registration-submit').click();
       assert.equal((await created).status(), 201);
-      await receiverPage.locator('#staff-student-account-success-close').waitFor();
-      assert((await receiverPage.getByRole('dialog').innerText()).includes(profiles[1].name));
-      assert.equal(await receiverPage.locator('#staff-student-password').count(), 0);
+      await receiverPage.getByRole('dialog').waitFor({ state: 'hidden' });
+      assert.equal(await receiverPage.locator('#new-student-password').count(), 0);
       assert.equal(JSON.stringify((await pool.query("SELECT payload,version FROM registrack_data WHERE key='studentRecords'")).rows), before);
       await receiverPage.screenshot({ path: '/tmp/zztest-settings-staff-account-390.png' });
-      await receiverPage.locator('#staff-student-account-success-close').click();
+    });
+    await check('browser Receiver uses the Registrar registration form for a brand-new student', async () => {
+      await receiverPage.locator('#staff-student-account-open').click();
+      receiverRegistrationLabels = await receiverPage.getByRole('dialog').locator('label').allTextContents();
+      await receiverPage.locator('#new-student-id').fill('91000088');
+      await receiverPage.locator('#new-student-name').fill('ZZ-TEST-Receiver-Browser-New');
+      await receiverPage.locator('#new-student-email').fill('receiver-browser-new@zz-test.invalid');
+      await receiverPage.locator('#new-student-phone').fill('+63 900 000 0088');
+      await receiverPage.locator('#new-student-degree-program').selectOption('BS Nursing');
+      await receiverPage.locator('#new-student-year-level').selectOption('3rd Year');
+      await receiverPage.locator('#new-student-enrollment-status').selectOption('Irregular');
+      await receiverPage.locator('#new-student-password').fill(password);
+      await assertWidth(receiverPage, 'new-student-registration');
+      await receiverPage.screenshot({ path: '/tmp/zztest-receiver-registration-390.png' });
+      const response = receiverPage.waitForResponse((entry) => entry.url().endsWith('/api/users') && entry.request().method() === 'POST');
+      await receiverPage.locator('#student-registration-submit').click();
+      assert.equal((await response).status(), 201);
+      await receiverPage.getByRole('dialog').waitFor({ state: 'hidden' });
+      const stored = (await pool.query("SELECT payload FROM registrack_data WHERE key='studentRecords'")).rows[0].payload;
+      const record = stored.find((entry: any) => entry.studentId === '91000088');
+      assert.equal(record.name, 'ZZ-TEST-Receiver-Browser-New');
+      assert.equal(record.degreeProgram, 'BS Nursing'); assert.equal(record.yearLevel, '3rd Year');
+      assert.equal(record.enrollmentStatus, 'Irregular'); assert.equal(record.phone, '+63 900 000 0088');
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      page.on('pageerror', (error) => errors.push(error.message));
+      await login(page, record.name);
+      assert.equal(await page.locator('#staff-student-account-open').count(), 0);
+      await context.close();
     });
     await check('browser student account created by staff logs in and sees the current institution profile', async () => {
       await login(studentPage, profiles[1].name);
@@ -104,6 +137,16 @@ export async function verifySettingsBrowser({ base, password, names, profiles, i
       await registrarPage.locator('#superadmin-nav-students').click();
       await assertInfo(registrarPage, initialSettings);
       await registrarPage.getByRole('button', { name: /Register New Student Profile/i }).waitFor();
+      await registrarPage.getByRole('button', { name: /Register New Student Profile/i }).click();
+      assert.deepEqual(await registrarPage.getByRole('dialog').locator('label').allTextContents(), receiverRegistrationLabels);
+      await registrarPage.locator('#new-student-id').fill('91000087');
+      await registrarPage.locator('#new-student-name').fill('ZZ-TEST-Registrar-Browser-New');
+      await registrarPage.locator('#new-student-email').fill('registrar-browser-new@zz-test.invalid');
+      await registrarPage.locator('#new-student-password').fill(password);
+      const response = registrarPage.waitForResponse((entry) => entry.url().endsWith('/api/users') && entry.request().method() === 'POST');
+      await registrarPage.locator('#student-registration-submit').click();
+      assert.equal((await response).status(), 201);
+      await registrarPage.getByRole('dialog').waitFor({ state: 'hidden' });
       await registrarPage.locator('#superadmin-nav-settings').click();
       assert.equal(await registrarPage.getByText('Saved only - not used yet', { exact: true }).count(), 0);
       assert.equal(await registrarPage.getByText('Open Student Self-Registration', { exact: true }).count(), 0);

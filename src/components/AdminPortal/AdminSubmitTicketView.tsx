@@ -479,7 +479,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white rounded-xl border border-stone-200 shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
                   {searchedStudents.length === 0 ? (
                     <div className="p-3 text-xs text-stone-500 text-center">
-                      No matching student records found. Enter the walk-in student’s details below to file this request. Student accounts must be linked to an official record; Receiver / Releasing staff can create accounts for existing records, while the Registrar Officer creates official records.
+                      No matching student records found. Enter the walk-in student’s details below to file this request. Receiver / Releasing staff and the Registrar Officer can register a student profile and create its login; registering a profile here does not file or change a ticket.
                     </div>
                   ) : (
                     searchedStudents.map((st) => (

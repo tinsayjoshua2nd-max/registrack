@@ -198,7 +198,7 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <p className="font-bold text-stone-900">Student Account Creation</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
-                  Only Receiver / Releasing staff and the Registrar Officer can create student accounts. Accounts are linked to existing official student records; this setting does not offer public self-registration or allow students to file tickets.
+                  Receiver / Releasing staff and the Registrar Officer can register student profiles and create linked student accounts. Receiver staff may register students who are not yet recorded; matching existing records are not changed. Students cannot self-register or file tickets.
                 </p>
               </div>
             </div>

@@ -393,31 +393,62 @@ function cleanAccountInput(value: unknown): {
 async function receiverStudentAccountInput(
   client: import('pg').PoolClient,
   submitted: ReturnType<typeof cleanAccountInput>,
-): Promise<ReturnType<typeof cleanAccountInput>> {
-  const result = await client.query<{ payload: unknown }>(
-    "SELECT payload FROM registrack_data WHERE key = 'studentRecords' FOR SHARE",
-  );
-  const profiles = Array.isArray(result.rows[0]?.payload)
-    ? result.rows[0].payload.filter(isObject).filter((record) => record.studentId === submitted.studentId)
-    : [];
-  const profile = profiles.length === 1 ? profiles[0] : undefined;
-  if (!profile || profile.isArchived === true) {
-    throw new ApiError(400, 'Select an active official student record. A Registrar Officer must create the record first.');
+): Promise<{ input: ReturnType<typeof cleanAccountInput>; createRecord: boolean }> {
+  // Serialize profile/account creation together, including simultaneous submissions.
+  const stored = await lockResource(client, 'studentRecords');
+  if (!Array.isArray(stored)) {
+    throw new ApiError(400, 'Student records are unavailable; no account was created.');
+  }
+  const profiles = stored.filter(isObject).filter((record) => record.studentId === submitted.studentId);
+  if (profiles.length > 1) {
+    throw new ApiError(400, 'This student ID has duplicate official records. Ask a Registrar Officer to review them.');
+  }
+  const profile = profiles[0];
+  if (!profile) {
+    const data = submitted.data;
+    const enrollmentStatus = data.enrollmentStatus ?? 'Regular';
+    const unitsEnrolled = Number(data.unitsEnrolled ?? 18);
+    if (!['Regular', 'Irregular', 'Graduating', 'Alumni', 'On Leave'].includes(String(enrollmentStatus)) ||
+      !Number.isSafeInteger(unitsEnrolled) || unitsEnrolled < 0) {
+      throw new ApiError(400, 'Enter valid student enrollment details.');
+    }
+    for (const key of ['degreeProgram', 'departmentOrOffice', 'yearLevel', 'phoneNumber']) {
+      if (data[key] !== undefined && typeof data[key] !== 'string') {
+        throw new ApiError(400, 'Enter valid student profile details.');
+      }
+    }
+    const degreeProgram = String(data.degreeProgram ?? data.departmentOrOffice ?? '').trim();
+    return {
+      input: cleanAccountInput({
+        name: submitted.name, email: submitted.email, role: 'student', status: 'active',
+        studentId: submitted.studentId, password: submitted.password,
+        departmentOrOffice: degreeProgram, degreeProgram,
+        yearLevel: data.yearLevel ?? '', phoneNumber: data.phoneNumber ?? '',
+        enrollmentStatus, unitsEnrolled,
+      }),
+      createRecord: true,
+    };
+  }
+  if (profile.isArchived === true) {
+    throw new ApiError(400, 'This student record is archived. Ask a Registrar Officer to restore it first.');
   }
   if (typeof profile.name !== 'string' || typeof profile.email !== 'string' ||
     profile.name.trim() !== submitted.name ||
     profile.email.trim().toLowerCase() !== submitted.email) {
     throw new ApiError(400, 'Use the name and email from the official student record.');
   }
-  // Receiver access is credentials-only: never accept altered official-record fields.
-  return cleanAccountInput({
-    name: profile.name, email: profile.email, role: 'student', status: 'active',
-    studentId: submitted.studentId, password: submitted.password,
-    departmentOrOffice: profile.degreeProgram || '',
-    degreeProgram: profile.degreeProgram || '',
-    yearLevel: profile.yearLevel || '',
-    phoneNumber: profile.phone || '',
-  });
+  // Linking a login must not overwrite an existing official student record.
+  return {
+    input: cleanAccountInput({
+      name: profile.name, email: profile.email, role: 'student', status: 'active',
+      studentId: submitted.studentId, password: submitted.password,
+      departmentOrOffice: profile.degreeProgram || '',
+      degreeProgram: profile.degreeProgram || '', yearLevel: profile.yearLevel || '',
+      phoneNumber: profile.phone || '', enrollmentStatus: profile.enrollmentStatus || 'Regular',
+      unitsEnrolled: profile.unitsEnrolled ?? 0,
+    }),
+    createRecord: false,
+  };
 }
 
 function defaultData(key: string): unknown {
@@ -1379,7 +1410,9 @@ export function registerApi(app: import('express').Express): void {
       const submitted = cleanAccountInput(req.body?.user);
       const passwordHash = await hashPassword(submitted.password);
       const inserted = await withTransaction(async (client) => {
-        const input = isRegistrar ? submitted : await receiverStudentAccountInput(client, submitted);
+        const { input, createRecord } = isRegistrar
+          ? { input: submitted, createRecord: submitted.role === 'student' }
+          : await receiverStudentAccountInput(client, submitted);
         const result = await client.query<AccountRow>(
           `INSERT INTO registrack_accounts
              (id, name, email, role, status, student_id, password_hash, data)
@@ -1397,7 +1430,7 @@ export function registerApi(app: import('express').Express): void {
           ],
         );
         const user = result.rows[0];
-        if (input.role === 'student' && isRegistrar) {
+        if (createRecord) {
           await upsertStudentRecord(client, input, user);
         }
         return user;

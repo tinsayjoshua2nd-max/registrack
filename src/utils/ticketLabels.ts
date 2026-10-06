@@ -9,7 +9,7 @@ const stageLabels: Record<string, string> = {
 };
 
 const auditRoleLabels: Record<string, string> = {
-  receiver: 'Receiver / Receiving',
+  receiver: 'Receiver / Releasing',
   records_management: 'Records Management',
   evaluator: 'Evaluator',
   registrar: 'Registrar Officer',

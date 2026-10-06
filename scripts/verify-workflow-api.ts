@@ -309,7 +309,7 @@ try {
     })).status, 200);
     const saved = await state();
     assert.equal(saved.auditLogs.find((entry: any) => entry.id === audit.id).actorName, 'ZZ-TEST-receiver');
-    assert.equal(saved.auditLogs.find((entry: any) => entry.id === audit.id).actorRole, 'Receiver / Receiving');
+    assert.equal(saved.auditLogs.find((entry: any) => entry.id === audit.id).actorRole, 'Receiver / Releasing');
     assert.equal(saved.systemActivities.find((entry: any) => entry.id === activity.id).actor, 'ZZ-TEST-receiver');
   });
   await check('non-stage ticket fields remain saveable while stage, status, and history remain blocked', async () => {

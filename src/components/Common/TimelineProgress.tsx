@@ -225,13 +225,13 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
                   ticket.assignedTo.toLowerCase().includes(u.name.toLowerCase())
               );
               let roleBadge = user ? (
-                user.role === 'receiver' ? 'Receiver / Receiving' :
+                user.role === 'receiver' ? 'Receiver / Releasing' :
                 user.role === 'records_management' ? 'Records Management' :
                 user.role === 'evaluator' ? 'Evaluator' :
                 user.role === 'registrar' ? 'Registrar Officer' : user.role
               ) : null;
               if (!roleBadge) {
-                if (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')) roleBadge = 'Receiver / Receiving';
+                if (ticket.assignedTo.toLowerCase().includes('receiver') || ticket.assignedTo.toLowerCase().includes('records office')) roleBadge = 'Receiver / Releasing';
                 else if (ticket.assignedTo.toLowerCase().includes('ronald')) roleBadge = 'Records Management';
                 else if (ticket.assignedTo.toLowerCase().includes('elena') || ticket.assignedTo.toLowerCase().includes('lee')) roleBadge = 'Evaluator';
               }

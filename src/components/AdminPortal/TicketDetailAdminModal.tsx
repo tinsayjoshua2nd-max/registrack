@@ -182,7 +182,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
       return normalizedName === name || normalizedName.startsWith(`${name} (`);
     });
     if (user) {
-      if (user.role === 'receiver') return 'Receiver / Receiving';
+      if (user.role === 'receiver') return 'Receiver / Releasing';
       if (user.role === 'records_management') return 'Records Management';
       if (user.role === 'evaluator') return 'Evaluator';
       if (user.role === 'registrar' || user.role === 'superadmin') return 'University Registrar';

@@ -27,7 +27,7 @@ export const INITIAL_ROLES: SystemRole[] = [
   },
   {
     id: 'role-2',
-    name: 'Receiver / Receiving',
+    name: 'Receiver / Releasing',
     description: 'Responsible for Application Form for the students and creating student accounts. Can freely reassign documents to Records Management, Evaluator, or Registrar.',
     isSystemDefault: true,
     userCount: 0,

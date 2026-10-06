@@ -53,7 +53,7 @@ export const UserManagementView: React.FC = () => {
     email: '',
     password: '',
     role: 'receiver' as AccountRoleType,
-    departmentOrOffice: 'Ground Floor, Window 2 (Receiver / Receiving Desk)',
+    departmentOrOffice: 'Ground Floor, Window 2 (Receiver / Releasing Desk)',
     studentId: '',
     phoneNumber: '',
     status: 'active' as AccountStatus,
@@ -521,7 +521,7 @@ export const UserManagementView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-semibold text-stone-800"
                   >
-                    <option value="receiver">Receiver / Receiving</option>
+                    <option value="receiver">Receiver / Releasing</option>
                     <option value="records_management">Records Management</option>
                     <option value="evaluator">Evaluator</option>
                     <option value="registrar">Registrar Officer</option>
@@ -623,7 +623,7 @@ export const UserManagementView: React.FC = () => {
                     onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
                   >
-                    <option value="receiver">Receiver / Receiving</option>
+                    <option value="receiver">Receiver / Releasing</option>
                     <option value="records_management">Records Management</option>
                     <option value="evaluator">Evaluator</option>
                     <option value="registrar">Registrar Officer</option>

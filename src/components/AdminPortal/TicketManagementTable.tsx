@@ -42,7 +42,7 @@ export const TicketManagementTable: React.FC = () => {
         assignedName.toLowerCase().includes(u.name.toLowerCase())
     );
     if (user) {
-      if (user.role === 'receiver') return 'Receiver / Receiving';
+      if (user.role === 'receiver') return 'Receiver / Releasing';
       if (user.role === 'records_management') return 'Records Management';
       if (user.role === 'evaluator') return 'Evaluator';
       if (user.role === 'registrar') return 'Registrar Officer';

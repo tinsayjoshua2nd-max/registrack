@@ -77,14 +77,14 @@ export const HelpdeskManagementView: React.FC = () => {
         assignedName.toLowerCase().includes(u.name.toLowerCase())
     );
     if (user) {
-      if (user.role === 'receiver') return 'Receiver / Receiving';
+      if (user.role === 'receiver') return 'Receiver / Releasing';
       if (user.role === 'records_management') return 'Records Management';
       if (user.role === 'evaluator') return 'Evaluator';
       if (user.role === 'registrar' || user.role === 'superadmin') return 'University Registrar';
       if (user.role === 'admin') return 'Admin';
       return user.role;
     }
-    if (assignedName.toLowerCase().includes('receiver') || assignedName.toLowerCase().includes('records office')) return 'Receiver / Receiving';
+    if (assignedName.toLowerCase().includes('receiver') || assignedName.toLowerCase().includes('records office')) return 'Receiver / Releasing';
     if (assignedName.toLowerCase().includes('ronald')) return 'Records Management';
     if (assignedName.toLowerCase().includes('elena') || assignedName.toLowerCase().includes('lee')) return 'Evaluator';
     if (assignedName.toLowerCase().includes('alexander') || assignedName.toLowerCase().includes('reyes') || assignedName.toLowerCase().includes('registrar')) return 'University Registrar';
@@ -581,7 +581,7 @@ export const HelpdeskManagementView: React.FC = () => {
                     </option>
                   ))}
                   {!staffMembers.some((sm) => sm.name === 'Records Office') && (
-                    <option value="Records Office">Records Office — Receiver / Receiving Desk (Window 2)</option>
+                    <option value="Records Office">Records Office — Receiver / Releasing Desk (Window 2)</option>
                   )}
                   {!staffMembers.some((sm) => sm.name === 'Mr. Ronald Tan') && (
                     <option value="Mr. Ronald Tan">Mr. Ronald Tan — Records Management (Window 1)</option>

@@ -2481,7 +2481,7 @@ function mergeAppendOnlyRecords(currentValue: unknown, submittedValue: unknown):
 
 function auditRoleLabel(role: string): string {
   const labels: Record<string, string> = {
-    receiver: 'Receiver / Receiving',
+    receiver: 'Receiver / Releasing',
     records_management: 'Records Management',
     evaluator: 'Evaluator',
     registrar: 'Registrar Officer',

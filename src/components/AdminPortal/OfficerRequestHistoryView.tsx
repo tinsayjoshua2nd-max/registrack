@@ -286,7 +286,7 @@ export const OfficerRequestHistoryView: React.FC = () => {
                 className="w-full px-3 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:border-emerald-600 outline-none font-semibold text-stone-700"
               >
                 <option value="All">All Registrar Desks</option>
-                <option value="receiver">Receiver / Receiving Desk</option>
+                <option value="receiver">Receiver / Releasing Desk</option>
                 <option value="records_management">Records Management Desk</option>
                 <option value="evaluator">Academic Evaluator Desk</option>
                 <option value="registrar">University Registrar Desk</option>

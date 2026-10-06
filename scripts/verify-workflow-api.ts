@@ -316,19 +316,20 @@ try {
     assert.deepEqual(studentState.completedRequestsHistory, []);
     assert.deepEqual(studentBootstrap.body.state.completedRequestsHistory, []);
     for (const [ticketNumber, message, reason, type] of expectations) {
+      const fullNumber = `ZZ-TEST-${ticketNumber}`;
       const studentNotification = studentState.notifications.find((entry: any) =>
-        entry.ticketNumber === ticketNumber && entry.message === message);
-      assert(studentNotification, `Missing student notification for ${ticketNumber}`);
+        entry.ticketNumber === fullNumber && entry.message === message);
+      assert(studentNotification, `Missing student notification for ${fullNumber}`);
       assert.equal(studentNotification.message, message);
       assert.equal(studentNotification.title, ticketNumber === 'notify-reject'
-        && message === reasons.rejection ? 'Action Needed' : `Request ${ticketNumber} Updated`);
+        && message === reasons.rejection ? 'Action Needed' : `Request ${fullNumber} Updated`);
       assert.equal(studentNotification.audience, 'student');
       assert.equal(studentNotification.recipientStudentId, '90000001');
       assert.equal(studentNotification.type, type);
       assert(studentNotification.id);
       if (ticketNumber !== 'notify-reject') assert(!studentNotification.message.includes(reason));
       const bootstrapNotification = studentBootstrap.body.state.notifications.find(
-        (entry: any) => entry.ticketNumber === ticketNumber && entry.message === message,
+        (entry: any) => entry.ticketNumber === fullNumber && entry.message === message,
       );
       assert.equal(bootstrapNotification.message, message);
     }
@@ -343,7 +344,8 @@ try {
     for (const role of ['receiver', 'registrar', 'superadmin']) {
       const staffState = await state(role);
       for (const [ticketNumber, _message, reason] of expectations) {
-        const staffTicket = staffState.tickets.find((entry: any) => entry.ticketNumber === ticketNumber);
+        const fullNumber = `ZZ-TEST-${ticketNumber}`;
+        const staffTicket = staffState.tickets.find((entry: any) => entry.ticketNumber === fullNumber);
         if (ticketNumber === 'notify-handoff' && role === 'receiver') {
           assert(staffTicket, 'Receiver retains visibility of the handoff ticket.');
         }
@@ -352,8 +354,8 @@ try {
             `${role} timeline lost workflow reason ${reason}`);
         }
         const notification = staffState.notifications.find((entry: any) =>
-          entry.ticketNumber === ticketNumber && entry.message === _message);
-        assert(notification, `${role} lost workflow notification for ${ticketNumber}`);
+          entry.ticketNumber === fullNumber && entry.message === _message);
+        assert(notification, `${role} lost workflow notification for ${fullNumber}`);
         assert.equal(notification.message, _message, `${role} notification message changed for ${ticketNumber}`);
       }
       if (role !== 'receiver') {

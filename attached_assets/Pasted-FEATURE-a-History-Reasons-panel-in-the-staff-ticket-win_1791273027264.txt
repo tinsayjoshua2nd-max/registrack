@@ -1,0 +1,40 @@
+FEATURE: a "History & Reasons" panel in the staff ticket window. Client-only. Do NOT
+modify anything in server/. Do not add it to any student screen.
+
+1. CREATE src/components/AdminPortal/TicketHistoryPanel.tsx. Props: the ticket's
+   timelineHistory array. Render a card titled "History & Reasons" with a count, as a
+   real list (<ol>), NEWEST FIRST, in a scrollable area (about 16rem tall). Do not
+   mutate the array. Use getTicketStageLabel and formatAuditStageDetails from
+   src/utils/ticketLabels.ts and formatDateInManila from src/utils/formatDate.ts.
+
+   Each entry shows: a heading line, "<actor> - <date and time in Manila>", and a Reason
+   line when there is one.
+   Heading by event.action:
+     none and stage 'submitted'  -> "Request submitted"
+     'stage' forward (fromStage earlier than stage in the order submitted, processing,
+       for_seal, ready, completed) -> "Moved forward: <From> -> <To>"
+     'stage' backward            -> "Moved back: <From> -> <To>"  (amber)
+     'reject'                    -> "Needs information (held at <Stage>)"  (red)
+     'reopen' -> "Reopened" (amber); 'repair' -> "Stage repaired" (amber);
+     'force_close' -> "Force closed" (amber); 'handoff' -> "Reassigned" (neutral)
+     anything else               -> event.title with raw stage keys replaced by their
+       labels (e.g. for_seal -> For University Seal)
+   Reason line: show event.notes prefixed with "Reason:" for moved back, reject, reopen,
+   repair and force_close, and "Note:" for other entries. Do NOT show the automatic
+   filler text that starts with "Stage changed to". Skip entries whose timestamp is
+   "Upcoming step". If an entry has no notes, show no reason line. Reasons need a
+   tinted background AND the "Reason:" prefix (do not rely on colour alone). Text at
+   least 12px, wraps on narrow screens. Empty state: "No history recorded yet."
+   Old entries with no action/fromStage must still render sensibly (title, time, actor,
+   notes).
+
+2. In src/components/AdminPortal/TicketDetailAdminModal.tsx render the panel in the
+   "Stage & Timeline Workflow" tab directly after <TimelineProgress ticket={ticket} />
+   (~L635) and before the "Workflow Stage & Role Handoff Control" panel. Change nothing
+   else in that file. It appears for all staff roles and for Super Admin "Manage".
+
+3. Run npm run lint. Short test with ZZ-TEST records: move a ticket forward, back with
+   a reason, reject it with a reason, reopen it as Super Admin; confirm the panel lists
+   them newest first with the reasons, that forward moves show no "Stage changed to"
+   filler, that student screens are unchanged, and that the ticket window has no
+   sideways scrolling at 390px. Report files touched. If lint fails, stop.

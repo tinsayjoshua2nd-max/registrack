@@ -1,0 +1,37 @@
+FOLLOW-UP TO THE PRIVACY FIX. Keep the existing change that removes `notes` from
+students' timelineHistory (do not touch it).
+Note: your earlier check expected rejectionReason to survive a stage move. That
+expectation was wrong: a normal stage move deletes rejectionReason by design
+(ticketWorkflow.ts ~L131). Fix the check, not the code.
+
+Problem found by testing: students still receive staff-only reasons through
+(a) the student notification, where ticketWorkflow.ts (~L170-176) uses
+    message: notes, so the bell menu shows the raw staff note; and
+(b) completedRequestsHistory, which is sent to students and includes notes,
+    ticketSnapshot.completionNotes and completedByOfficerEmail. No student screen uses it.
+
+1. In server/ticketWorkflow.ts change ONLY the title/message strings of the STUDENT
+   notification. Keep the 'reject' case exactly as it is (title "Action Needed" with the
+   rejection reason). For every other action the message must NOT contain the staff
+   note. Use these messages (stage labels: submitted "Submitted", processing
+   "Processing", for_seal "For University Seal", ready "Ready for Claiming", completed
+   "Completed"):
+     forward stage move: "Your request <ticketNumber> is now <Stage label>."
+     step back:          "Your request <ticketNumber> was moved back to <Stage label> for further processing."
+     handoff:            "Your request <ticketNumber> is now being handled by another staff member."
+     reopen:             "Your request <ticketNumber> has been reopened for further processing."
+     repair:             "Your request <ticketNumber> was updated."
+     force close / completed: "Your request <ticketNumber> is complete."
+     ready: "Your request <ticketNumber> is ready for claiming."
+   Do NOT change any logic, notification types, ids, or who receives them.
+
+2. For STUDENT accounts return an empty completedRequestsHistory in the state and
+   bootstrap responses (staff and Super Admin unchanged).
+
+3. TEST with ZZ-TEST records in a disposable database. Use these marker strings as
+   staff notes: step-back, force close, reopen and hand-off notes. Check that none of
+   them appears ANYWHERE in the student's /api/state or /api/bootstrap, that the
+   rejection reason still appears, that staff and Super Admin still see every note in
+   the history and Audit Trail, and that the student notification texts read as above.
+   Run npm run lint and the whole scripts/verify-workflow-api.ts; report each check by
+   name. If any check fails, stop and tell me.

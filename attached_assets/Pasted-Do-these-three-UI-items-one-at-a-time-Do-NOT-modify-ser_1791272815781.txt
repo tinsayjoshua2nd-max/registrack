@@ -1,0 +1,37 @@
+Do these three UI items one at a time. Do NOT modify server/. Do not change stored
+values or existing records.
+
+1. NEWEST FIRST. The dashboard "Recent System Activities" feed (SuperAdminDashboard.tsx,
+   filteredActivities) and the Audit Trail table (AuditLogsView.tsx) show entries in
+   storage order, which is oldest first, because the server appends new entries at the end.
+   Display both lists newest first: sort a COPY by Date.parse(timestamp) descending; if a
+   timestamp cannot be parsed, keep that entry's stored position relative to its
+   neighbours and put it after the parsed ones. Do not mutate stored data. Make the
+   Audit Trail CSV export use the same order.
+
+2. PRIORITY LABELS (display only). Keep the stored values 'Normal', 'Urgent',
+   'Deadline-sensitive' and the sorting in ticketQueue.ts EXACTLY as they are. Show:
+     Normal             -> "Standard (3 to 15 working days)"
+     Urgent             -> "Priority (on call)"
+     Deadline-sensitive -> "Deadline sensitive (within the day)"
+   in this order. Add a getPriorityLabel helper in src/utils/ticketLabels.ts and use it
+   in: the Application Form select (AdminSubmitTicketView.tsx ~L746), the ticket window
+   select (TicketDetailAdminModal.tsx ~L528), the table filter (TicketManagementTable.tsx
+   ~L182), the Super Admin select and buttons (HelpdeskManagementView.tsx ~L248 and ~L432)
+   and PriorityBadge.tsx. Badges may use the short names "Standard", "Priority",
+   "Deadline sensitive", with the full text as a title tooltip. List any other visible
+   text that still says "Urgent" for this field and fix it the same way.
+
+3. OFFICE HOURS. Create src/data/officeInfo.ts with the hours, then use it in every
+   place they appear: Navbar.tsx ~L89, LoginPage.tsx ~L42, App.tsx footer ~L121-122,
+   src/data/mockData.ts ~L66 and StudentOverview.tsx ~L271 (if that file is unused,
+   just keep it consistent). The hours are: Monday to Thursday 8:00 AM - 6:00 PM, Friday
+   8:00 AM - 5:00 PM, with a noon break. The footer currently says "(No Noon Break)";
+   it must not.
+
+4. QUESTION ONLY, DO NOT CHANGE: .replit now has a "python-base-3.13" module and a port
+   mapping localPort 5055 -> externalPort 4200 that I did not add. Explain why they
+   appeared and whether they are needed.
+
+Run npm run lint. Keep tests short, ZZ-TEST records only. Report files touched per
+item. If lint fails, stop.

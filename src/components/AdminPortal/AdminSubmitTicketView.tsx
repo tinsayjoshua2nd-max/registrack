@@ -14,7 +14,6 @@ import {
   AlertCircle,
   Copy,
   ArrowRight,
-  Sparkles,
   ShieldCheck,
   Search,
   Clock,
@@ -764,12 +763,6 @@ export const AdminSubmitTicketView: React.FC = () => {
 
           {/* Submit Action */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <div className="text-xs text-stone-500 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-700" />
-              <span>
-                Ticket # is generated automatically and published to the student tracking portal with live arrival timestamps.
-              </span>
-            </div>
 
             <button
               type="submit"

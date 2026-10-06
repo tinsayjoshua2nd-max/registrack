@@ -86,7 +86,7 @@ export const Navbar: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4 text-emerald-200 text-xs">
-            <span className="hidden sm:inline">Operating Hours: Mon - Fri (8:00 AM - 5:00 PM)</span>
+            <span className="hidden sm:inline">Operating Hours: Mon - Thu (8:00 AM - 6:00 PM) · Fri (8:00 AM - 5:00 PM)</span>
           </div>
         </div>
       </div>

@@ -118,8 +118,11 @@ const AppContent: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <Clock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-white">Monday - Friday</p>
-                    <p className="text-[11px]">8:00 AM – 5:00 PM (No Noon Break)</p>
+                    <p className="font-semibold text-white">Monday - Thursday</p>
+                    <p className="text-[11px]">8:00 AM – 6:00 PM</p>
+                    <p className="font-semibold text-white mt-1">Friday</p>
+                    <p className="text-[11px]">8:00 AM – 5:00 PM</p>
+                    <p className="text-[11px]">No Noon Break</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

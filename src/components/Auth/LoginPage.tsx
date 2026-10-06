@@ -57,7 +57,7 @@ export const LoginPage: React.FC = () => {
             </span>
           </div>
           <div className="hidden sm:flex items-center gap-4 text-emerald-200 text-xs">
-            <span>Operating Hours: Mon - Fri (8:00 AM - 5:00 PM)</span>
+            <span>Operating Hours: Mon - Thu (8:00 AM - 6:00 PM) · Fri (8:00 AM - 5:00 PM)</span>
             <span className="text-emerald-300 font-mono">Window 1 to 5 Active</span>
           </div>
         </div>

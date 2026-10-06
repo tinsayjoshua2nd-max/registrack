@@ -63,7 +63,7 @@ export const INITIAL_FAQS: FAQItem[] = [
     requirements: [
       'Present your Ticket Number (e.g. REG-2026-00125) on your mobile screen or printed stub',
       'Present 1 physical valid ID',
-      'Claiming hours: 8:00 AM to 5:00 PM (Monday to Friday)',
+      'Claiming hours: 8:00 AM to 6:00 PM (Monday to Thursday); 8:00 AM to 5:00 PM (Friday)',
     ],
   },
   {

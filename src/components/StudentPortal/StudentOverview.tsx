@@ -268,7 +268,13 @@ export const StudentOverview: React.FC = () => {
               <span>Registrar Office Hours</span>
             </div>
             <p className="text-xs text-emerald-900 leading-relaxed">
-              Ground Floor Administration Building • Mon - Fri (8:00 AM - 5:00 PM)
+              Ground Floor Administration Building
+            </p>
+            <p className="text-xs text-emerald-900 leading-relaxed">
+              Monday - Thursday: 8:00 AM - 6:00 PM
+            </p>
+            <p className="text-xs text-emerald-900 leading-relaxed">
+              Friday: 8:00 AM - 5:00 PM
             </p>
             <p className="text-[11px] text-emerald-700">
               No noon break for document releasing counters.

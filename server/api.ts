@@ -5,7 +5,6 @@ import { withTransaction, pool } from './database';
 import { normalizeTicketPriority } from '../src/utils/ticketQueue';
 import { projectAccounts, projectStudents } from './rolePayload';
 import { hasRegistrarAccess } from './registrarAccess';
-import { registerStudentCredentials, studentRegistrationOptions, StudentRegistrationError } from './studentRegistration';
 import { appendWorkflowEvidence, performTicketWorkflow, PROTECTED_WORKFLOW_FIELDS, WorkflowError } from './ticketWorkflow';
 import {
   createSessionToken,
@@ -111,7 +110,6 @@ type RequestWithAuth = Request & { auth?: AuthenticatedAccount };
 type State = Record<string, unknown>;
 
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const registrationAttempts = new Map<string, { count: number; resetAt: number }>();
 
 class ApiError extends Error {
   readonly statusCode: number;
@@ -390,6 +388,36 @@ function cleanAccountInput(value: unknown): {
       lastLogin: 'Never',
     },
   };
+}
+
+async function receiverStudentAccountInput(
+  client: import('pg').PoolClient,
+  submitted: ReturnType<typeof cleanAccountInput>,
+): Promise<ReturnType<typeof cleanAccountInput>> {
+  const result = await client.query<{ payload: unknown }>(
+    "SELECT payload FROM registrack_data WHERE key = 'studentRecords' FOR SHARE",
+  );
+  const profiles = Array.isArray(result.rows[0]?.payload)
+    ? result.rows[0].payload.filter(isObject).filter((record) => record.studentId === submitted.studentId)
+    : [];
+  const profile = profiles.length === 1 ? profiles[0] : undefined;
+  if (!profile || profile.isArchived === true) {
+    throw new ApiError(400, 'Select an active official student record. A Registrar Officer must create the record first.');
+  }
+  if (typeof profile.name !== 'string' || typeof profile.email !== 'string' ||
+    profile.name.trim() !== submitted.name ||
+    profile.email.trim().toLowerCase() !== submitted.email) {
+    throw new ApiError(400, 'Use the name and email from the official student record.');
+  }
+  // Receiver access is credentials-only: never accept altered official-record fields.
+  return cleanAccountInput({
+    name: profile.name, email: profile.email, role: 'student', status: 'active',
+    studentId: submitted.studentId, password: submitted.password,
+    departmentOrOffice: profile.degreeProgram || '',
+    degreeProgram: profile.degreeProgram || '',
+    yearLevel: profile.yearLevel || '',
+    phoneNumber: profile.phone || '',
+  });
 }
 
 function defaultData(key: string): unknown {
@@ -834,10 +862,6 @@ function loginRateLimit(req: Request, res: Response, next: NextFunction): void {
   limitAccountAttempts(req, res, next, loginAttempts, 'sign-in');
 }
 
-function registrationRateLimit(req: Request, res: Response, next: NextFunction): void {
-  limitAccountAttempts(req, res, next, registrationAttempts, 'registration');
-}
-
 function limitAccountAttempts(
   req: Request, res: Response, next: NextFunction,
   attempts: Map<string, { count: number; resetAt: number }>, label: string,
@@ -872,26 +896,6 @@ export async function initializeApi(): Promise<void> {
 }
 
 export function registerApi(app: import('express').Express): void {
-  app.get('/api/registration-options', async (_req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    try {
-      res.json(await studentRegistrationOptions());
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post('/api/student-registration', csrfGuard, registrationRateLimit, async (req, res, next) => {
-    try {
-      res.status(201).json(await registerStudentCredentials(req.body));
-    } catch (error) {
-      if (error instanceof StudentRegistrationError && error.statusCode < 500) {
-        return fail(res, error.statusCode, error.message);
-      }
-      next(error);
-    }
-  });
-
   app.post('/api/login', csrfGuard, loginRateLimit, async (req, res, next) => {
     try {
       const { identifier, password } = req.body || {};
@@ -1361,11 +1365,21 @@ export function registerApi(app: import('express').Express): void {
     }
   });
 
-  app.post('/api/users', csrfGuard, requireRegistrar, async (req: RequestWithAuth, res, next) => {
+  app.post('/api/users', csrfGuard, requireAuth, async (req: RequestWithAuth, res, next) => {
     try {
-      const input = cleanAccountInput(req.body?.user);
-      const passwordHash = await hashPassword(input.password);
+      const auth = req.auth;
+      if (!auth) return fail(res, 401, 'Your session is no longer valid.');
+      const isRegistrar = hasRegistrarAccess(auth.accountRole);
+      if (!isRegistrar && auth.accountRole !== 'receiver') {
+        return fail(res, 403, 'Only Receiver / Releasing and Registrar Officers can create student accounts.');
+      }
+      if (!isRegistrar && req.body?.user?.role !== 'student') {
+        return fail(res, 403, 'Receiver / Releasing can create student accounts only.');
+      }
+      const submitted = cleanAccountInput(req.body?.user);
+      const passwordHash = await hashPassword(submitted.password);
       const inserted = await withTransaction(async (client) => {
+        const input = isRegistrar ? submitted : await receiverStudentAccountInput(client, submitted);
         const result = await client.query<AccountRow>(
           `INSERT INTO registrack_accounts
              (id, name, email, role, status, student_id, password_hash, data)
@@ -1383,13 +1397,17 @@ export function registerApi(app: import('express').Express): void {
           ],
         );
         const user = result.rows[0];
-        if (input.role === 'student') {
+        if (input.role === 'student' && isRegistrar) {
           await upsertStudentRecord(client, input, user);
         }
         return user;
       });
       res.status(201).json({ user: publicAccount(inserted) });
     } catch (error) {
+      if (error instanceof ApiError) {
+        fail(res, error.statusCode, error.message);
+        return;
+      }
       if (isUniqueViolation(error)) {
         fail(res, 409, 'That name, email, or student ID is already assigned to another account.');
         return;

@@ -35,10 +35,16 @@ export function projectStudents(viewer: Viewer, values: unknown, accounts: unkno
     else if (!profile.profilePicture && account.profilePicture) profile.profilePicture = account.profilePicture;
   }
   const linked = new Set(objects(tickets).map(ticket => String(ticket.studentId)));
+  const loginIds = new Set(objects(accounts).filter(record => record.role === 'student')
+    .map(record => String(record.studentId)));
   return [...profiles.values()]
     .filter(record => viewer.accountRole === 'receiver' || linked.has(String(record.studentId)))
     .map(record => {
       const result = pick(record, viewer.accountRole === 'receiver' ? INTAKE_FIELDS : ['studentId', 'name']);
+      if (viewer.accountRole === 'receiver') {
+        result.hasLoginAccount = loginIds.has(String(record.studentId));
+        result.isArchived = record.isArchived === true;
+      }
       if (linked.has(String(record.studentId)) && record.profilePicture) result.profilePicture = record.profilePicture;
       return result;
     });

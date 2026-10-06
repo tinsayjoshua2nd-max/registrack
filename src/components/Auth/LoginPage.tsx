@@ -10,7 +10,6 @@ import {
   GraduationCap, User, Eye, EyeOff, ArrowRight,
   AlertCircle, Lock,
 } from 'lucide-react';
-import { StudentRegistration } from './StudentRegistration';
 
 export const LoginPage: React.FC = () => {
   const { login } = useHelpdesk();
@@ -197,7 +196,6 @@ export const LoginPage: React.FC = () => {
                 </p>
               )}
             </form>
-            <StudentRegistration consentAccepted={consentAccepted} />
             <div className="mt-8 pt-4 border-t border-stone-100 text-[11px] text-stone-500 flex items-center justify-between gap-2">
               <span className="flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-700" />Data Privacy & Educational Records Protection</span>
               <span>Need help? Contact Window 2</span>

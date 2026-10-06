@@ -21,6 +21,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { StaffStudentAccountForm } from './StaffStudentAccountForm';
 
 export const AdminSubmitTicketView: React.FC = () => {
   const {
@@ -275,6 +276,8 @@ export const AdminSubmitTicketView: React.FC = () => {
         </div>
       </div>
 
+      <StaffStudentAccountForm />
+
       {/* Generated Ticket Success Modal / Slip Display */}
       {createdTicket ? (
         <div className="bg-white rounded-2xl border-2 border-emerald-500 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
@@ -476,7 +479,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                 <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white rounded-xl border border-stone-200 shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
                   {searchedStudents.length === 0 ? (
                     <div className="p-3 text-xs text-stone-500 text-center">
-                      No matching student records found. Enter the walk-in student’s details below to file this request. The Registrar must create any student account in Student Records.
+                      No matching student records found. Enter the walk-in student’s details below to file this request. Student accounts must be linked to an official record; Receiver / Releasing staff can create accounts for existing records, while the Registrar Officer creates official records.
                     </div>
                   ) : (
                     searchedStudents.map((st) => (

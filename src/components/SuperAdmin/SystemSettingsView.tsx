@@ -10,8 +10,6 @@ import {
   Save,
   Mail,
   School,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
 
 export const SystemSettingsView: React.FC = () => {
@@ -196,19 +194,13 @@ export const SystemSettingsView: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
               <div>
-                <p className="font-bold text-stone-900">Open Student Self-Registration</p>
-                <p className="text-[11px] text-stone-500">
-                  Allows students to create an account linked to an existing official student record. Student accounts cannot file tickets.
+                <p className="font-bold text-stone-900">Student Account Creation</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
+                  Only Receiver / Releasing staff and the Registrar Officer can create student accounts. Accounts are linked to existing official student records; this setting does not offer public self-registration or allow students to file tickets.
                 </p>
               </div>
-              <input
-                type="checkbox"
-                checked={settings.allowStudentRegistration}
-                onChange={(e) => setSettings({ ...settings, allowStudentRegistration: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700 cursor-pointer"
-              />
             </div>
           </div>
         </div>

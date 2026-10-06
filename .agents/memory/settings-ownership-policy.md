@@ -1,6 +1,6 @@
 ---
 name: Settings ownership policy
-description: Approved boundaries for institution metadata, evaluator capacity, and student account signup.
+description: Approved boundaries for institution metadata, evaluator capacity, and staff-created student accounts.
 ---
 
 Institution code, academic year, and semester are current global reference information, not values to copy into or rewrite on existing student or ticket records.
@@ -15,8 +15,8 @@ Evaluator capacity applies to automatic assignment only, counts pending and proc
 
 **How to apply:** Preserve role priority and explicit staff selections when implementing or changing routing.
 
-Enabled student signup creates login credentials only for an existing eligible official student record. It must not create or rewrite that record, and it does not grant ticket submission rights.
+Only Receiver / Releasing and Registrar Officer accounts can create student accounts. Remove public student signup; a saved self-registration flag must not restore it.
 
-**Why:** The user approved self-registration while retaining Registrar ownership of official records and staff-only request creation.
+**Why:** The user replaced the earlier self-registration approval with: “remove the Create student account button in the log in page, and only the RECEIVER / RELEASING and Registrar officer can create the students accounts.”
 
-**How to apply:** Recheck the registration setting on the server; never reuse account-creation paths that also create student records.
+**How to apply:** Enforce the role restriction on the server as well as the UI. Grant Receiver student-credential creation only, not staff-account creation, account management, or official-record editing. Preserve Registrar record management and staff-only ticket submission.

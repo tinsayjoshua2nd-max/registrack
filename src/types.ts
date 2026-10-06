@@ -212,6 +212,8 @@ export interface UserAccount {
 }
 
 export interface StudentProfile {
+  /** Derived for staff intake; never persisted as official student information. */
+  hasLoginAccount?: boolean;
   id: string;
   studentId: string; // 8 numbers only e.g. "20231492"
   name: string;

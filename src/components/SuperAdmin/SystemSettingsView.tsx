@@ -19,9 +19,17 @@ export const SystemSettingsView: React.FC = () => {
 
   const [settings, setSettings] = useState(systemSettings);
   const [notification, setNotification] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!Number.isInteger(settings.maxPendingTicketsPerStaff) ||
+      settings.maxPendingTicketsPerStaff < 1 || settings.maxPendingTicketsPerStaff > 50) {
+      setValidationError('Evaluator automatic-assignment limit must be a whole number between 1 and 50.');
+      setNotification(null);
+      return;
+    }
+    setValidationError(null);
     updateSystemSettings(settings);
     setNotification('System configuration parameters updated successfully.');
     setTimeout(() => setNotification(null), 3000);
@@ -60,6 +68,11 @@ export const SystemSettingsView: React.FC = () => {
           <span>{notification}</span>
         </div>
       )}
+      {validationError && (
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+          {validationError}
+        </p>
+      )}
 
       {/* Settings Form */}
       <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -85,15 +98,7 @@ export const SystemSettingsView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
-                  <span>Institutional Code</span>
-                  <span
-                    title="You can edit and save this value, but no other part of the system uses it yet."
-                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
-                  >
-                    Saved only - not used yet
-                  </span>
-                </label>
+                <label className="block font-bold text-stone-700 mb-1">Institutional Code</label>
                 <input
                   type="text"
                   value={settings.schoolCode}
@@ -129,15 +134,7 @@ export const SystemSettingsView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
-                  <span>Academic Year</span>
-                  <span
-                    title="You can edit and save this value, but no other part of the system uses it yet."
-                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
-                  >
-                    Saved only - not used yet
-                  </span>
-                </label>
+                <label className="block font-bold text-stone-700 mb-1">Academic Year</label>
                 <input
                   type="text"
                   value={settings.academicYear}
@@ -147,15 +144,7 @@ export const SystemSettingsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
-                  <span>Semester / Term</span>
-                  <span
-                    title="You can edit and save this value, but no other part of the system uses it yet."
-                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
-                  >
-                    Saved only - not used yet
-                  </span>
-                </label>
+                <label className="block font-bold text-stone-700 mb-1">Semester / Term</label>
                 <input
                   type="text"
                   value={settings.semester}
@@ -191,14 +180,8 @@ export const SystemSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="mb-1 flex flex-wrap items-center gap-2 font-bold text-stone-700">
-                <span>Max Pending Tickets Per Evaluator</span>
-                <span
-                  title="You can edit and save this value, but no other part of the system uses it yet."
-                  className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
-                >
-                  Saved only - not used yet
-                </span>
+              <label className="block font-bold text-stone-700 mb-1">
+                Max Pending Tickets Per Evaluator
               </label>
               <input
                 type="number"
@@ -209,23 +192,15 @@ export const SystemSettingsView: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
               />
               <p className="text-[10px] text-stone-500 mt-1">
-                Saved for future use. Tickets are not limited by this number yet.
+                Automatic assignment skips an evaluator once their pending and processing tickets reach this cap. Manual assignment is unaffected.
               </p>
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
               <div>
-                <p className="flex flex-wrap items-center gap-2 font-bold text-stone-900">
-                  <span>Open Student Self-Registration</span>
-                  <span
-                    title="You can edit and save this value, but no other part of the system uses it yet."
-                    className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-800"
-                  >
-                    Saved only - not used yet
-                  </span>
-                </p>
+                <p className="font-bold text-stone-900">Open Student Self-Registration</p>
                 <p className="text-[11px] text-stone-500">
-                  Saved for future use. The login screen does not currently offer student registration.
+                  Allows students to create an account linked to an existing official student record. Student accounts cannot file tickets.
                 </p>
               </div>
               <input

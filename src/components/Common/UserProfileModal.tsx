@@ -19,6 +19,7 @@ import {
   Sparkles,
   Phone,
 } from 'lucide-react';
+import { InstitutionInfo } from './InstitutionInfo';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -315,6 +316,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
               </div>
 
               {/* Account Identity Card */}
+              {role === 'student' && <InstitutionInfo compact />}
               <div className="p-5 rounded-2xl bg-white border border-stone-200 space-y-3">
                 <h3 className="font-heading font-bold text-stone-900 text-sm flex items-center gap-2">
                   <User className="w-4 h-4 text-emerald-800" />

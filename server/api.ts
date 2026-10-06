@@ -5,6 +5,7 @@ import { withTransaction, pool } from './database';
 import { normalizeTicketPriority } from '../src/utils/ticketQueue';
 import { projectAccounts, projectStudents } from './rolePayload';
 import { hasRegistrarAccess } from './registrarAccess';
+import { registerStudentCredentials, studentRegistrationOptions, StudentRegistrationError } from './studentRegistration';
 import { appendWorkflowEvidence, performTicketWorkflow, PROTECTED_WORKFLOW_FIELDS, WorkflowError } from './ticketWorkflow';
 import {
   createSessionToken,
@@ -110,6 +111,7 @@ type RequestWithAuth = Request & { auth?: AuthenticatedAccount };
 type State = Record<string, unknown>;
 
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const registrationAttempts = new Map<string, { count: number; resetAt: number }>();
 
 class ApiError extends Error {
   readonly statusCode: number;
@@ -487,11 +489,21 @@ function redactStudentTicket(ticket: Record<string, unknown>): Record<string, un
   };
 }
 
+function studentInstitutionSettings(value: unknown): Record<string, unknown> {
+  const settings = { ...DEFAULT_SYSTEM_SETTINGS, ...(isObject(value) ? value : {}) };
+  return {
+    schoolCode: settings.schoolCode,
+    academicYear: settings.academicYear,
+    semester: settings.semester,
+  };
+}
+
 function scopeResourcePayload(
   account: AuthenticatedAccount,
   key: string,
   value: unknown,
 ): unknown {
+  if (key === 'systemSettings' && account.accountRole === 'student') return studentInstitutionSettings(value);
   if (!Array.isArray(value)) return value;
   const records = value.filter(isObject);
   if (key === 'users') return projectAccounts(account, records);
@@ -732,7 +744,7 @@ async function getState(account: AuthenticatedAccount): Promise<State> {
   state.roles = [];
   state.auditLogs = [];
   state.systemActivities = [];
-  state.systemSettings = {};
+  state.systemSettings = studentInstitutionSettings(state.systemSettings);
   state.deletedAccounts = [];
 
   const allTickets = Array.isArray(state.tickets) ? state.tickets as Record<string, unknown>[] : [];
@@ -819,21 +831,32 @@ function accountAuthRole(userRole: string): string {
 }
 
 function loginRateLimit(req: Request, res: Response, next: NextFunction): void {
+  limitAccountAttempts(req, res, next, loginAttempts, 'sign-in');
+}
+
+function registrationRateLimit(req: Request, res: Response, next: NextFunction): void {
+  limitAccountAttempts(req, res, next, registrationAttempts, 'registration');
+}
+
+function limitAccountAttempts(
+  req: Request, res: Response, next: NextFunction,
+  attempts: Map<string, { count: number; resetAt: number }>, label: string,
+): void {
   const key = req.ip || 'unknown';
   const now = Date.now();
-  if (loginAttempts.size > 10_000) {
-    for (const [address, attempt] of loginAttempts) {
-      if (attempt.resetAt <= now) loginAttempts.delete(address);
+  if (attempts.size > 10_000) {
+    for (const [address, attempt] of attempts) {
+      if (attempt.resetAt <= now) attempts.delete(address);
     }
   }
-  const entry = loginAttempts.get(key);
+  const entry = attempts.get(key);
   if (!entry || entry.resetAt <= now) {
-    loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    attempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
     next();
     return;
   }
   if (entry.count >= 8) {
-    res.status(429).json({ error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+    res.status(429).json({ error: `Too many ${label} attempts. Please wait 15 minutes and try again.` });
     return;
   }
   entry.count += 1;
@@ -849,6 +872,26 @@ export async function initializeApi(): Promise<void> {
 }
 
 export function registerApi(app: import('express').Express): void {
+  app.get('/api/registration-options', async (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      res.json(await studentRegistrationOptions());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/student-registration', csrfGuard, registrationRateLimit, async (req, res, next) => {
+    try {
+      res.status(201).json(await registerStudentCredentials(req.body));
+    } catch (error) {
+      if (error instanceof StudentRegistrationError && error.statusCode < 500) {
+        return fail(res, error.statusCode, error.message);
+      }
+      next(error);
+    }
+  });
+
   app.post('/api/login', csrfGuard, loginRateLimit, async (req, res, next) => {
     try {
       const { identifier, password } = req.body || {};
@@ -1237,6 +1280,9 @@ export function registerApi(app: import('express').Express): void {
       }
       if (!canWriteResource(auth, key)) {
         return fail(res, 403, 'Your account does not have permission to update this system data.');
+      }
+      if (key === 'systemSettings') {
+        validateBackupSettings(payload);
       }
 
       const result = await withTransaction(async (client) => {
@@ -1685,6 +1731,11 @@ async function loadTicketIntakeConfig(client: import('pg').PoolClient): Promise<
     typeof settings.autoAssignmentEnabled !== 'boolean') {
     throw new ApiError(500, 'Maintenance or auto-assignment settings are invalid.');
   }
+  if (typeof settings.maxPendingTicketsPerStaff !== 'number' ||
+    !Number.isSafeInteger(settings.maxPendingTicketsPerStaff) ||
+    settings.maxPendingTicketsPerStaff < 1 || settings.maxPendingTicketsPerStaff > 50) {
+    throw new ApiError(500, 'The evaluator automatic-assignment limit is invalid.');
+  }
   if (settings.maxPendingPerStudent !== undefined &&
     (typeof settings.maxPendingPerStudent !== 'number' ||
       !Number.isSafeInteger(settings.maxPendingPerStudent) || settings.maxPendingPerStudent < 0)) {
@@ -1758,6 +1809,7 @@ function pendingLimit(config: TicketIntakeConfig): number | undefined {
 async function resolveTicketAssignment(
   client: import('pg').PoolClient,
   settings: Record<string, unknown>,
+  tickets: Record<string, unknown>[],
   requestedName?: string,
 ): Promise<{ assignedTo: string; assignedRole?: string }> {
   const requested = requestedName?.trim();
@@ -1792,9 +1844,21 @@ async function resolveTicketAssignment(
          WHEN 'records_management' THEN 2
          WHEN 'evaluator' THEN 3
          ELSE 4
-       END, created_at, lower(name)
-       LIMIT 1`,
+       END, created_at, lower(name)`,
     );
+    // Preserve role priority. Only the evaluator group is capacity-limited.
+    if (staff.rows[0]?.role === 'evaluator') {
+      const limit = settings.maxPendingTicketsPerStaff as number;
+      const available = staff.rows.find((candidate) => candidate.role === 'evaluator' &&
+        tickets.filter((ticket) => {
+          const name = String(ticket.assignedTo || ticket.assignedStaff || ticket.assignedEvaluator || '').trim().toLowerCase();
+          return name === candidate.name.trim().toLowerCase() &&
+            ['pending', 'processing'].includes(String(ticket.status || '').toLowerCase());
+        }).length < limit);
+      return available
+        ? { assignedTo: available.name, assignedRole: available.role }
+        : { assignedTo: 'Unassigned' };
+    }
     if (staff.rows[0]) {
       return { assignedTo: staff.rows[0].name, assignedRole: staff.rows[0].role };
     }
@@ -2125,6 +2189,7 @@ async function createCanonicalTicket(
   const assignment = await resolveTicketAssignment(
     client,
     config.settings,
+    active,
     isStudent ? undefined : typeof input.assignedTo === 'string' ? input.assignedTo : undefined,
   );
   const nowDate = new Date();
@@ -2720,6 +2785,9 @@ function validateBackupSettings(value: unknown): Record<string, unknown> {
       typeof item !== 'number' || !Number.isInteger(item) || item < 0 || item > 10_000
     )) {
       throw new ApiError(400, `System setting ${key} must be a whole number between 0 and 10,000.`);
+    }
+    if (key === 'maxPendingTicketsPerStaff' && typeof item === 'number' && (item < 1 || item > 50)) {
+      throw new ApiError(400, 'Evaluator automatic-assignment limit must be between 1 and 50.');
     }
     if (!booleanSettings.has(key) && !numericSettings.has(key) && typeof item !== 'string') {
       throw new ApiError(400, `System setting ${key} has an invalid value.`);

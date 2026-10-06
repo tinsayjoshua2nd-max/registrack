@@ -18,6 +18,7 @@ import {
   BookOpen,
   Award,
 } from 'lucide-react';
+import { InstitutionInfo } from '../Common/InstitutionInfo';
 
 export const StudentRecordManagementView: React.FC = () => {
   const {
@@ -173,6 +174,8 @@ export const StudentRecordManagementView: React.FC = () => {
           <span>{notificationMsg}</span>
         </div>
       )}
+
+      <InstitutionInfo compact />
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs space-y-3">

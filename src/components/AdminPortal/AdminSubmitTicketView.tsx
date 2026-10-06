@@ -154,6 +154,11 @@ export const AdminSubmitTicketView: React.FC = () => {
   };
 
   const handleReassignClick = () => {
+    if (assignedStaff === 'Unassigned') {
+      setErrorMessage(null);
+      setReassignToast('This request will use automatic staff routing when submitted.');
+      return;
+    }
     const selectedStaffObj = staffList.find((s) => s.name === assignedStaff);
     if (!selectedStaffObj) {
       setErrorMessage('Select a staff member before assigning this request.');
@@ -605,7 +610,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                     Assign to staff:
                   </label>
                   <p className="text-[11px] text-stone-600">
-                    Receiver can freely reassign to Records Management, Evaluator, or Registrar Officer.
+                    Choose a staff member or leave routing to the automatic assignment rules.
                   </p>
                 </div>
                 <div className="min-w-0 w-full sm:w-auto flex items-center gap-2">
@@ -620,6 +625,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                     className="min-w-0 flex-1 sm:flex-initial px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white font-semibold text-stone-900 focus:border-emerald-600 outline-none"
                   >
                     <option value="">Select staff member</option>
+                    <option value="Unassigned">Automatic assignment</option>
                     {staffList.map((s) => (
                       <option key={s.id} value={s.name}>
                         {s.name} ({s.role})
@@ -632,7 +638,7 @@ export const AdminSubmitTicketView: React.FC = () => {
                     disabled={!assignedStaff}
                     className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 shadow-2xs"
                   >
-                    Assign to
+                    {assignedStaff === 'Unassigned' ? 'Use auto-routing' : 'Assign to'}
                   </button>
                 </div>
               </div>

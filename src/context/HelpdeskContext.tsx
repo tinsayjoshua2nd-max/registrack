@@ -816,8 +816,8 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         year: 'numeric',
       });
     }
-    const assignedStaff = users.find((user) => user.status === 'active' && user.role !== 'student' && user.role !== 'superadmin');
-    const defaultAssigned = assignedStaff?.name || systemSettings.officeName || 'Registrar Office';
+    // Keep explicit staff choices; otherwise let the server apply routing and capacity.
+    const defaultAssigned = data.assignedTo?.trim() || 'Unassigned';
     const defaultLocation = systemSettings.schoolAddress || systemSettings.officeName || '';
 
     const newTicket: Ticket = {

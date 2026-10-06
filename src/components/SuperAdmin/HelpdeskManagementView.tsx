@@ -575,23 +575,11 @@ export const HelpdeskManagementView: React.FC = () => {
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none"
                 >
                   <option value="">-- Choose Staff Evaluator / Role --</option>
-                  {staffMembers.map((sm) => (
+                  {staffMembers.filter((sm) => sm.status === 'active').map((sm) => (
                     <option key={sm.id} value={sm.name}>
                       {sm.name} — {getStaffRoleBadge(sm.name)} ({sm.departmentOrOffice})
                     </option>
                   ))}
-                  {!staffMembers.some((sm) => sm.name === 'Records Office') && (
-                    <option value="Records Office">Records Office — Receiver / Releasing Desk (Window 2)</option>
-                  )}
-                  {!staffMembers.some((sm) => sm.name === 'Mr. Ronald Tan') && (
-                    <option value="Mr. Ronald Tan">Mr. Ronald Tan — Records Management (Window 1)</option>
-                  )}
-                  {!staffMembers.some((sm) => sm.name === 'Ms. Elena Ramos') && (
-                    <option value="Ms. Elena Ramos">Ms. Elena Ramos — Evaluator (Window 3)</option>
-                  )}
-                  {!staffMembers.some((sm) => sm.name === 'Mrs. Grace Cruz') && (
-                    <option value="Mrs. Grace Cruz">Mrs. Grace Cruz — Registrar Officer (Window 4)</option>
-                  )}
                 </select>
               </div>
 

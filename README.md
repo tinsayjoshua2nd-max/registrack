@@ -26,8 +26,8 @@ The server listens on `0.0.0.0:5000` by default.
 
 Do not run local database setup against a managed development or production
 database. Do not reset, seed, or overwrite existing data to get the app running.
-If tables are missing, review the development schema and use Replit's supported
-schema synchronization during Publish for managed production.
+For Replit-managed production, review the development schema and use Replit's
+supported schema synchronization during Publish.
 
 ## New local database setup
 
@@ -65,6 +65,32 @@ Create real students and officers through the Registrar management screens.
 An incompatible or partially initialized database must be reviewed separately;
 the local setup command deliberately does not repair it.
 
+## New Supabase database setup
+
+`npm run db:supabase:setup` is a separate, explicit initializer for a **new,
+empty Supabase database**. It reads only `SUPABASE_DATABASE_URL`; it never falls
+back to `DATABASE_URL` or `LOCAL_DATABASE_URL`, and it is not part of app startup,
+build, or publishing.
+
+1. Create a new Supabase database and store its PostgreSQL connection URL in the
+   `SUPABASE_DATABASE_URL` secret. Use the Supabase Session pooler URL if the
+   direct database endpoint is not reachable from your environment.
+2. Run `npm run db:supabase:setup` where that secret is available. For a local
+   `.env` file, run `node --env-file=.env --import tsx scripts/setup-supabase-db.ts`.
+3. The command begins a transaction and checks `public` for existing database
+   objects. If it finds any, it stops and rolls back without changing the
+   database. Otherwise, it applies `db/schema.sql` and commits it as one
+   transaction. It does not add accounts or other seed records.
+
+Do not use this initializer on an existing Supabase database, even if its
+RegisTrack tables appear incomplete. It does not repair or migrate existing
+schemas. Review and apply changes to an existing Supabase database separately.
+
+Supabase is an external database: this initializer is not Replit's publishing
+schema migration. Replit-managed development PostgreSQL is managed separately,
+and Replit-managed production schema changes are reviewed and applied through
+Publish. Do not use the Supabase initializer for either Replit-managed database.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -90,6 +116,7 @@ removed or changed by these setup instructions.
 | `npm run build` | Build the frontend into `dist` and server into `dist-server`. |
 | `npm start` | Run the compiled Express server in production mode. |
 | `npm run db:setup` | Initialize a new, empty, dedicated local database only. |
+| `npm run db:supabase:setup` | Initialize the public schema of a new, empty Supabase database only. |
 | `npm run preview` | Vite frontend preview only; does not run the API or support full application behavior. |
 
 For a local production run after building:

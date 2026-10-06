@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "db:setup": "tsx scripts/setup-db.ts",
+    "db:supabase:setup": "tsx scripts/setup-supabase-db.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

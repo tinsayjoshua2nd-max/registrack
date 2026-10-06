@@ -1,4 +1,5 @@
--- Reference schema for NEW, EMPTY local databases only.
+-- Reference schema for new, empty PostgreSQL databases only.
+-- Explicit initializers apply this schema; the app never creates tables at startup.
 -- Replit-managed production schema is synchronized through Publish.
 -- No seed data, resets, or changes to existing tables belong here.
 

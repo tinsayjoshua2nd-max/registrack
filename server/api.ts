@@ -920,7 +920,9 @@ function limitAccountAttempts(
 
 export async function initializeApi(): Promise<void> {
   if (!env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is unavailable. Connect the Replit PostgreSQL database before starting RegisTrack.');
+    if (!env.SUPABASE_DATABASE_URL) {
+      throw new Error('No database connection is configured. Set SUPABASE_DATABASE_URL or connect the Replit PostgreSQL database.');
+    }
   }
   await pool.query('SELECT 1');
   await ensureBootstrapAccount();

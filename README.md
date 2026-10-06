@@ -15,7 +15,11 @@ On Replit, the configured package firewall still controls dependency installatio
 
 ## Run on Replit
 
-Use the provisioned PostgreSQL connection (`DATABASE_URL`). Set
+Use the provisioned PostgreSQL connection (`DATABASE_URL`), or set the secret
+`SUPABASE_DATABASE_URL` to use Supabase PostgreSQL instead. When both are set,
+Supabase takes precedence. The chosen database must already contain the RegisTrack
+tables described in `db/schema.sql`; the app does not create or migrate tables on
+startup. Set
 `REGISTRAR_BOOTSTRAP_PASSWORD` in Secrets if the database does not already have a
 Registrar account, then start the existing workflow or run `npm run dev`.
 The server listens on `0.0.0.0:5000` by default.
@@ -66,6 +70,7 @@ the local setup command deliberately does not repair it.
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Required runtime PostgreSQL connection; keep private. |
+| `SUPABASE_DATABASE_URL` | Optional Supabase PostgreSQL connection; takes precedence over `DATABASE_URL`. Store it as a secret. |
 | `REGISTRAR_BOOTSTRAP_PASSWORD` | Required only to create the first Registrar. |
 | `LOCAL_DATABASE_URL` | Explicit target for optional local-only setup. Not used by the app server. |
 | `PORT` | Server port; defaults to `5000`. |

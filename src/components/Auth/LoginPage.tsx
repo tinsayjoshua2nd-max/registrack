@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import {
-  GraduationCap, ShieldCheck, User, Eye, EyeOff, ArrowRight,
-  Clock, FileText, AlertCircle, Lock,
+  PRIVACY_CONSENT_LABEL,
+  PRIVACY_NOTICE_SECTIONS,
+  PRIVACY_NOTICE_TITLE,
+  PRIVACY_NOTICE_VERSION,
+} from '../../data/privacyNotice';
+import {
+  GraduationCap, User, Eye, EyeOff, ArrowRight,
+  AlertCircle, Lock,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { login } = useHelpdesk();
+  const [consentAccepted, setConsentAccepted] = useState(() => {
+    try {
+      return typeof window !== 'undefined' &&
+        window.localStorage.getItem('registrack.privacyNoticeAccepted') === PRIVACY_NOTICE_VERSION;
+    } catch {
+      return false;
+    }
+  });
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,6 +29,10 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!consentAccepted) {
+      setError('Please accept the Privacy Notice to log in.');
+      return;
+    }
     if (submitting) return;
     setError(null);
     setSubmitting(true);
@@ -47,7 +65,7 @@ export const LoginPage: React.FC = () => {
 
       <main className="flex-1 flex items-center justify-center px-3 py-4 sm:p-6 lg:p-10">
         <div className="w-full max-w-5xl bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-stone-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-          <div className="lg:col-span-5 bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 text-white p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden">
+          <div className="lg:col-span-5 bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-950 text-white p-5 sm:p-8 flex flex-col relative overflow-hidden">
             <div className="absolute -right-12 -top-12 w-48 h-48 rounded-full bg-emerald-700/20 blur-2xl pointer-events-none" />
             <div className="absolute -left-12 -bottom-12 w-48 h-48 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
             <div className="relative z-10">
@@ -63,35 +81,60 @@ export const LoginPage: React.FC = () => {
                   <p className="text-xs text-emerald-200 font-medium">University Registrar Records & Helpdesk Portal</p>
                 </div>
               </div>
-              <p className="mt-4 sm:mt-6 text-sm text-emerald-100/90 leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Improving the efficiency, accessibility, and transparency of university registrar services through real-time request tracking, automated ticket generation, and dedicated evaluator support.
-              </p>
-              <div className="mt-6 space-y-3 hidden lg:block">
-                <div className="p-3 rounded-xl bg-emerald-800/60 border border-emerald-700/60 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0"><FileText className="w-4 h-4" /></div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">Online Ticket Inquiries</h4>
-                    <p className="text-[11px] text-emerald-200 mt-0.5 leading-snug">Submit concerns for Enrollment, Grades, TOR, Certifications, and Clearances.</p>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-emerald-800/60 border border-emerald-700/60 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0"><Clock className="w-4 h-4" /></div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">5-Stage Real-Time Tracking</h4>
-                    <p className="text-[11px] text-emerald-200 mt-0.5 leading-snug">Monitor Submitted, Reviewed, Processing, Ready, and Completed with release dates.</p>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-emerald-800/60 border border-emerald-700/60 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0"><ShieldCheck className="w-4 h-4" /></div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">Role-Separated Portals</h4>
-                    <p className="text-[11px] text-emerald-200 mt-0.5 leading-snug">Dedicated student interface and authorized registrar evaluator management desk.</p>
-                  </div>
+            </div>
+            <section className="relative z-10 mt-5 rounded-xl bg-white p-3 sm:p-4 text-stone-900 shadow-lg">
+              <h2 className="font-heading text-base font-bold text-stone-900">{PRIVACY_NOTICE_TITLE}</h2>
+              <div
+                role="region"
+                aria-label="Privacy Notice text"
+                tabIndex={0}
+                className="mt-2 h-48 sm:h-72 overflow-y-auto rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+              >
+                <div className="space-y-3">
+                  {PRIVACY_NOTICE_SECTIONS.map((section, index) => (
+                    <section key={`${section.heading || 'intro'}-${index}`} className="space-y-2">
+                      {section.separatorBefore && <hr className="border-stone-300" />}
+                      {section.heading && <h3 className="text-xs font-bold text-stone-900">{section.heading}</h3>}
+                      {section.paragraphs?.map((paragraph, paragraphIndex) => (
+                        <p key={paragraphIndex}>{paragraph}</p>
+                      ))}
+                      {section.bullets && (
+                        <ul className="list-disc space-y-1 pl-5">
+                          {section.bullets.map((bullet, bulletIndex) => <li key={bulletIndex}>{bullet}</li>)}
+                        </ul>
+                      )}
+                      {section.closing?.map((paragraph, closingIndex) => (
+                        <p key={closingIndex}>{paragraph}</p>
+                      ))}
+                    </section>
+                  ))}
                 </div>
               </div>
-            </div>
-            <div className="relative z-10 pt-6 mt-6 border-t border-emerald-700/60 text-[11px] text-emerald-200/80 hidden lg:flex items-center justify-between">
-              <span>ISO 9001:2015 Quality Records Management</span><span>v2.4 Production</span>
+            </section>
+            <div className="relative z-10 mt-4 flex items-start gap-2 text-xs text-emerald-50">
+              <input
+                id="privacy-consent-checkbox"
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(event) => {
+                  const accepted = event.target.checked;
+                  setConsentAccepted(accepted);
+                  setError(null);
+                  try {
+                    if (accepted) {
+                      window.localStorage.setItem('registrack.privacyNoticeAccepted', PRIVACY_NOTICE_VERSION);
+                    } else {
+                      window.localStorage.removeItem('registrack.privacyNoticeAccepted');
+                    }
+                  } catch {
+                    // Consent still applies for this session if browser storage is unavailable.
+                  }
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-900"
+              />
+              <label htmlFor="privacy-consent-checkbox" className="cursor-pointer leading-relaxed">
+                {PRIVACY_CONSENT_LABEL}
+              </label>
             </div>
           </div>
 
@@ -143,10 +186,15 @@ export const LoginPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <button id="btn-login-submit" type="submit" disabled={submitting}
-                className="w-full min-h-12 py-3 px-4 rounded-xl font-heading font-bold text-sm text-white bg-emerald-700 hover:bg-emerald-800 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60 disabled:cursor-wait">
+              <button id="btn-login-submit" type="submit" disabled={submitting || !consentAccepted}
+                className="w-full min-h-12 py-3 px-4 rounded-xl font-heading font-bold text-sm text-white bg-emerald-700 hover:bg-emerald-800 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60 disabled:cursor-not-allowed">
                 <span>{submitting ? 'Logging in…' : 'Log In'}</span><ArrowRight className="w-4 h-4" />
               </button>
+              {!consentAccepted && (
+                <p className="text-xs text-stone-600" role="status">
+                  Please accept the Privacy Notice to log in.
+                </p>
+              )}
             </form>
             <div className="mt-8 pt-4 border-t border-stone-100 text-[11px] text-stone-500 flex items-center justify-between gap-2">
               <span className="flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-700" />Data Privacy & Educational Records Protection</span>

@@ -1765,7 +1765,7 @@ async function resolveTicketAssignment(
     const assigneeResult = await client.query<{ name: string; role: string }>(
       `SELECT name, role FROM registrack_accounts
        WHERE lower(name) = lower($1) AND status = 'active'
-         AND role NOT IN ('student', 'superadmin')
+         AND role <> 'student'
        LIMIT 1`,
       [requested],
     );
@@ -1921,7 +1921,7 @@ async function validateTicketAssignmentUpdate(
     const activeAccount = await client.query(
       `SELECT 1 FROM registrack_accounts
        WHERE lower(name) = lower($1) AND status = 'active'
-         AND role NOT IN ('student', 'superadmin')
+         AND role <> 'student'
        LIMIT 1`,
       [name],
     );

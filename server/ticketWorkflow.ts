@@ -147,7 +147,7 @@ export async function performTicketWorkflow(
     updated.assignedEvaluator = updated.assignedTo;
     await deps.assignment(client, previous, updated);
     const staff = await client.query<{ role: string }>(
-      "SELECT role FROM registrack_accounts WHERE lower(name) = lower($1) AND status = 'active' AND role NOT IN ('student', 'superadmin') LIMIT 1",
+      "SELECT role FROM registrack_accounts WHERE lower(name) = lower($1) AND status = 'active' AND role <> 'student' LIMIT 1",
       [updated.assignedTo],
     );
     updated.assignedRole = staff.rows[0]?.role;

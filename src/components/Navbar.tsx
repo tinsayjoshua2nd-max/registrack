@@ -74,7 +74,7 @@ export const Navbar: React.FC = () => {
       {role !== 'student' && systemSettings.maintenanceMode && (
         <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-rose-50 border-b border-rose-300 text-rose-800 text-xs font-bold">
           <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span>MAINTENANCE MODE ACTIVE</span>
+          <span>Maintenance Mode Active</span>
         </div>
       )}
       {/* Top Banner with Institutional Green Accent */}

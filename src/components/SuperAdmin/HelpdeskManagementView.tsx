@@ -3,7 +3,7 @@ import { useHelpdesk } from '../../context/HelpdeskContext';
 import { Ticket, TicketPriority, TicketStatus } from '../../types';
 import { formatDateInManila } from '../../utils/formatDate';
 import { getTicketStageLabel, getTicketMilestoneLabel } from '../../utils/ticketLabels';
-import { isTicketAssignedToAccount } from '../../utils/ticketQueue';
+import { isTicketAssignedToAccount, normalizeTicketPriority } from '../../utils/ticketQueue';
 import { CompletionConfirmationDialog } from '../Common/CompletionConfirmationDialog';
 import { TicketDetailAdminModal } from '../AdminPortal/TicketDetailAdminModal';
 import {
@@ -240,8 +240,8 @@ export const HelpdeskManagementView: React.FC = () => {
               className="px-3 py-1.5 text-xs rounded-xl border border-stone-200 bg-stone-50 text-stone-700 outline-none"
             >
               <option value="all">All Priorities</option>
-              <option value="Normal">Normal</option>
-              <option value="Urgent">Urgent</option>
+              <option value="Normal">Standard</option>
+              <option value="Urgent">Priority</option>
               <option value="Deadline-sensitive">Deadline-sensitive</option>
             </select>
 
@@ -310,9 +310,10 @@ export const HelpdeskManagementView: React.FC = () => {
                 ) : (
                   filteredTickets.map((t) => {
                     const isSelected = selectedTicket?.id === t.id;
+                    const normalizedPriority = normalizeTicketPriority(t.priority);
                     let priorityBadge = 'bg-stone-100 text-stone-700';
-                    if (t.priority === 'Urgent') priorityBadge = 'bg-rose-100 text-rose-800 font-bold border border-rose-200';
-                    if (t.priority === 'Deadline-sensitive') priorityBadge = 'bg-amber-100 text-amber-800 font-bold border border-amber-200';
+                    if (normalizedPriority === 'Urgent') priorityBadge = 'bg-rose-100 text-rose-800 font-bold border border-rose-200';
+                    if (normalizedPriority === 'Deadline-sensitive') priorityBadge = 'bg-amber-100 text-amber-800 font-bold border border-amber-200';
 
                     return (
                       <tr
@@ -342,7 +343,7 @@ export const HelpdeskManagementView: React.FC = () => {
                         </td>
                         <td className="py-3 px-4">
                           <span className={`inline-block px-2 py-0.5 rounded text-[10px] ${priorityBadge}`}>
-                            {t.priority}
+                            {normalizedPriority === 'Normal' ? 'Standard' : normalizedPriority === 'Urgent' ? 'Priority' : normalizedPriority || 'Unknown'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -431,7 +432,7 @@ export const HelpdeskManagementView: React.FC = () => {
                       onClick={() => {
                         updateTicketPrioritySuperAdmin(selectedTicket.id, p);
                         setSelectedTicket({ ...selectedTicket, priority: p });
-                        setNotification(`Updated priority to ${p}`);
+                        setNotification(`Updated priority to ${{ Normal: 'Standard', Urgent: 'Priority', 'Deadline-sensitive': 'Deadline-sensitive' }[p]}`);
                         setTimeout(() => setNotification(null), 2500);
                       }}
                       className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-all ${
@@ -440,7 +441,7 @@ export const HelpdeskManagementView: React.FC = () => {
                           : 'bg-stone-100 text-stone-600 hover:text-stone-900'
                       }`}
                     >
-                      {p}
+                      {{ Normal: 'Standard', Urgent: 'Priority', 'Deadline-sensitive': 'Deadline-sensitive' }[p]}
                     </button>
                   ))}
                 </div>

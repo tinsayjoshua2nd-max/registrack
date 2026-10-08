@@ -717,9 +717,14 @@ try {
     assert.equal((await request('registrar', '/api/state/systemSettings', 'PUT', {
       payload: { ...before.systemSettings, maintenanceMode: true }, version: before._versions.systemSettings,
     })).status, 200);
-    assert.equal((await request('receiver', '/api/tickets', 'POST', { ticket: {
-      ...ticket('maintenance-blocked', 'receiver'), assignedTo: 'ZZ-TEST-receiver',
-    } })).status, 503);
+    assert.equal((await state('receiver')).systemSettings.maintenanceMode, true, 'Maintenance state is shared from backend storage');
+    for (const role of ['receiver', 'records_management', 'evaluator', 'admin', 'staff', 'student']) {
+      const blocked = await request(role, '/api/tickets', 'POST', { ticket: {
+        ...ticket(`maintenance-blocked-${role}`, role), assignedTo: `ZZ-TEST-${role}`,
+      } });
+      assert.equal(blocked.status, 503, `${role} ticket submissions are blocked during maintenance`);
+      assert.equal(blocked.body.error, 'New ticket submissions are currently unavailable due to maintenance.');
+    }
     assert.equal((await request('registrar', '/api/tickets', 'POST', { ticket: {
       ...ticket('maintenance-registrar', 'receiver'), assignedTo: 'ZZ-TEST-receiver',
     } })).status, 201);

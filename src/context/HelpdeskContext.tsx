@@ -1196,7 +1196,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myEmail = (currentUser.email || '').toLowerCase();
 
     // Registrar Officers can review full system deletion records
-    if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
+    if (currentUser.role === 'superadmin' || currentUser.staffRole === 'registrar' || myRole === 'superadmin' || myRole === 'registrar') {
       return deletedRequestsHistory;
     }
 
@@ -1231,7 +1231,7 @@ export const HelpdeskProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const myEmail = (currentUser.email || '').toLowerCase();
 
     // Registrar Officers can review full system completion records
-    if (currentUser.role === 'superadmin' || myRole === 'superadmin') {
+    if (currentUser.role === 'superadmin' || currentUser.staffRole === 'registrar' || myRole === 'superadmin' || myRole === 'registrar') {
       return completedRequestsHistory;
     }
 

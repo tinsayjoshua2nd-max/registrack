@@ -179,8 +179,8 @@ export const TicketManagementTable: React.FC = () => {
               className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 bg-white focus:outline-none focus:border-emerald-600 font-medium"
             >
               <option value="All">All Priorities</option>
-              <option value="Normal">Normal</option>
-              <option value="Urgent">Urgent</option>
+              <option value="Normal">Standard</option>
+              <option value="Urgent">Priority</option>
               <option value="Deadline-sensitive">Deadline-sensitive</option>
             </select>
           </div>

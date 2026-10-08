@@ -31,6 +31,35 @@ interface TicketDetailAdminModalProps {
   onClose: () => void;
 }
 
+function parseEstimatedDateTime(value: string): { date: string; time: string } {
+  const formatted = value.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+-\s+(\d{2}):(\d{2})\s+(AM|PM)$/i);
+  if (formatted) {
+    const [, month, day, shortYear, hour, minute, meridiem] = formatted;
+    let hours = Number(hour) % 12;
+    if (meridiem.toUpperCase() === 'PM') hours += 12;
+    return {
+      date: `20${shortYear}-${month}-${day}`,
+      time: `${String(hours).padStart(2, '0')}:${minute}`,
+    };
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { date: '', time: '' };
+  return {
+    date: `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`,
+    time: '',
+  };
+}
+
+function formatEstimatedDateTime(date: string, time: string): string {
+  if (!date || !time) return '';
+  const [year, month, day] = date.split('-');
+  const [rawHours, minutes] = time.split(':').map(Number);
+  const meridiem = rawHours >= 12 ? 'PM' : 'AM';
+  const hours = rawHours % 12 || 12;
+  return `${month}/${day}/${year.slice(-2)} - ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${meridiem}`;
+}
+
 export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   ticket: initialTicket,
   onClose,
@@ -57,7 +86,8 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   const [activeTab, setActiveTab] = useState<'timeline' | 'notes' | 'chat'>('timeline');
   const [internalNoteInput, setInternalNoteInput] = useState('');
   const [adminChatInput, setAdminChatInput] = useState('');
-  const [estDateInput, setEstDateInput] = useState(ticket.estimatedReleaseDate);
+  const [estDateParts, setEstDateParts] = useState(() => parseEstimatedDateTime(ticket.estimatedReleaseDate));
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -92,7 +122,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
     if (!freshTicket) onClose();
   }, [freshTicket, onClose]);
   useEffect(() => {
-    setEstDateInput(freshTicket?.estimatedReleaseDate || '');
+    setEstDateParts(parseEstimatedDateTime(freshTicket?.estimatedReleaseDate || ''));
   }, [freshTicket?.estimatedReleaseDate]);
 
   // A handoff can remove the request from this officer's authorized state.
@@ -431,8 +461,22 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
   };
 
   const handleSaveEstDate = () => {
-    if (!estDateInput.trim()) return;
-    updateEstimatedDate(ticket.id, estDateInput.trim());
+    const formattedDate = formatEstimatedDateTime(estDateParts.date, estDateParts.time);
+    if (!formattedDate) return;
+    updateEstimatedDate(ticket.id, formattedDate);
+  };
+
+  const selectedTime = estDateParts.time.match(/^(\d{2}):(\d{2})$/);
+  const selectedHour24 = selectedTime ? Number(selectedTime[1]) : 0;
+  const selectedHour = selectedHour24 % 12 || 12;
+  const selectedMinute = selectedTime ? Number(selectedTime[2]) : 0;
+  const selectedMeridiem = selectedHour24 >= 12 ? 'PM' : 'AM';
+  const updatePickerTime = (hour: number, minute: number, meridiem: 'AM' | 'PM') => {
+    const hour24 = hour % 12 + (meridiem === 'PM' ? 12 : 0);
+    setEstDateParts((current) => ({
+      ...current,
+      time: `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    }));
   };
 
   return (
@@ -517,7 +561,7 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
           {/* Priority Urgency */}
           <div>
             <label htmlFor="triage-ticket-priority" className="block text-stone-500 font-semibold mb-1">
-              Priority Urgency:
+              Priority Level:
             </label>
             <select
               id="triage-ticket-priority"
@@ -526,9 +570,9 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
               onChange={(e) => void handlePriorityChange(e.target.value as TicketPriority)}
               className="w-full px-2.5 py-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:border-emerald-600"
             >
-              <option value="Normal">Normal</option>
-              <option value="Urgent">Urgent</option>
-              <option value="Deadline-sensitive">Deadline-sensitive</option>
+              <option value="Normal">Standard (3 to 15 working days)</option>
+              <option value="Urgent">Priority (On-call)</option>
+              <option value="Deadline-sensitive">Deadline-sensitive (within the day)</option>
             </select>
             {prioritySaving && <p className="text-xs text-stone-500 mt-1">Saving priority…</p>}
             {priorityError && <p role="alert" className="text-xs text-rose-700 mt-1">{priorityError}</p>}
@@ -612,19 +656,111 @@ export const TicketDetailAdminModal: React.FC<TicketDetailAdminModalProps> = ({
                     Visible to student on tracking and notifications.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
-                    type="text"
-                    value={estDateInput}
-                    onChange={(e) => setEstDateInput(e.target.value)}
+                    type="date"
+                    aria-label="Estimated document release date"
+                    value={estDateParts.date}
+                    onChange={(e) => setEstDateParts((current) => ({ ...current, date: e.target.value }))}
                     className="px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-white font-medium"
                   />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label="Choose estimated document release time"
+                      aria-haspopup="dialog"
+                      aria-expanded={showTimePicker}
+                      onClick={() => setShowTimePicker((open) => !open)}
+                      className="min-w-32 px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-white font-semibold text-stone-800 inline-flex items-center justify-center gap-2 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>{selectedTime ? `${selectedHour}:${String(selectedMinute).padStart(2, '0')} ${selectedMeridiem}` : 'Select time'}</span>
+                    </button>
+                    {showTimePicker && (
+                      <div
+                        role="dialog"
+                        aria-label="Select release time"
+                        className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-stone-200 bg-white p-3 shadow-xl"
+                      >
+                        <div className="mb-2 flex items-center justify-between border-b border-stone-100 pb-2">
+                          <div>
+                            <p className="text-xs font-bold text-stone-900">Choose a time</p>
+                            <p className="mt-0.5 text-[10px] text-stone-500">{selectedHour}:{String(selectedMinute).padStart(2, '0')} {selectedMeridiem}</p>
+                          </div>
+                          <Clock className="w-4 h-4 text-emerald-700" />
+                        </div>
+                        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                          <div>
+                            <p className="mb-1 text-[10px] font-bold uppercase text-stone-500">Hour</p>
+                            <div aria-label="Hour" role="listbox" className="h-40 overflow-y-auto rounded-lg bg-stone-50 p-1">
+                              {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+                                <button
+                                  key={hour}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={!!selectedTime && selectedHour === hour}
+                                  onClick={() => updatePickerTime(hour, selectedMinute, selectedMeridiem)}
+                                  className={`w-full rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors ${selectedTime && selectedHour === hour ? 'bg-emerald-700 text-white' : 'text-stone-700 hover:bg-emerald-100'}`}
+                                >
+                                  {hour}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="mb-1 text-[10px] font-bold uppercase text-stone-500">Minute</p>
+                            <div aria-label="Minute" role="listbox" className="h-40 overflow-y-auto rounded-lg bg-stone-50 p-1">
+                              {Array.from({ length: 60 }, (_, minute) => minute).map((minute) => (
+                                <button
+                                  key={minute}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={!!selectedTime && selectedMinute === minute}
+                                  onClick={() => updatePickerTime(selectedHour, minute, selectedMeridiem)}
+                                  className={`w-full rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors ${selectedTime && selectedMinute === minute ? 'bg-emerald-700 text-white' : 'text-stone-700 hover:bg-emerald-100'}`}
+                                >
+                                  {String(minute).padStart(2, '0')}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="mb-1 text-[10px] font-bold uppercase text-stone-500">Period</p>
+                            <div className="flex flex-col gap-1 rounded-lg bg-stone-50 p-1">
+                              {(['AM', 'PM'] as const).map((meridiem) => (
+                                <button
+                                  key={meridiem}
+                                  type="button"
+                                  aria-pressed={!!selectedTime && selectedMeridiem === meridiem}
+                                  onClick={() => updatePickerTime(selectedHour, selectedMinute, meridiem)}
+                                  className={`rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${selectedTime && selectedMeridiem === meridiem ? 'bg-emerald-700 text-white' : 'text-stone-700 hover:bg-emerald-100'}`}
+                                >
+                                  {meridiem}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowTimePicker(false)}
+                          className="mt-3 w-full rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-800"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={handleSaveEstDate}
+                    disabled={!estDateParts.date || !estDateParts.time}
                     className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
                   >
                     Update
                   </button>
+                  <span className="basis-full text-[11px] font-semibold text-emerald-900" aria-live="polite">
+                    {formatEstimatedDateTime(estDateParts.date, estDateParts.time) || 'Select a date and time'}
+                  </span>
                 </div>
               </div>
 

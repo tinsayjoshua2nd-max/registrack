@@ -203,14 +203,6 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="bg-white border-t border-stone-200 py-4 px-4 text-center text-xs text-stone-500">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© 2026 Office of the University Registrar. All rights reserved.</p>
-          <div className="flex flex-wrap justify-center items-center gap-4 text-[11px]">
-            <span>Window 1: Enrollment & Grades</span><span>•</span><span>Window 3: TOR Evaluation</span><span>•</span><span>Window 4: Certificates & Clearances</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

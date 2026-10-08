@@ -16,7 +16,6 @@ import {
   GraduationCap,
   Building,
   Mail,
-  Sparkles,
   Phone,
 } from 'lucide-react';
 import { InstitutionInfo } from './InstitutionInfo';
@@ -25,16 +24,6 @@ interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-// Academic preset avatars
-const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
-];
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose }) => {
   const {
@@ -105,10 +94,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       updateCurrentProfilePicture(dataUrl);
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleSelectPreset = (url: string) => {
-    updateCurrentProfilePicture(url);
   };
 
   const handleRemovePhoto = () => {
@@ -222,14 +207,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Profile Photo Section */}
-              <div className="p-5 rounded-2xl bg-stone-50 border border-stone-200 space-y-4">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-heading font-bold text-stone-900 text-sm flex items-center gap-2">
                     <Camera className="w-4 h-4 text-emerald-800" />
                     Profile Picture
                   </h3>
-                  <span className="text-[10px] text-stone-500 uppercase tracking-wider font-semibold">
-                    Supported: JPG, PNG, WEBP
+                  <span className="text-[11px] text-stone-500">
+                    JPG, PNG, or WEBP
                   </span>
                 </div>
 
@@ -284,33 +269,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                         </button>
                       )}
                     </div>
-                    <p className="text-[11px] text-stone-500 leading-tight">
-                      Upload your official academic headshot or choose from the curated university avatar presets below.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Preset Avatars */}
-                <div className="pt-3 border-t border-stone-200/80">
-                  <p className="text-[11px] font-bold text-stone-700 mb-2 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-600" />
-                    Or select a university photo preset:
-                  </p>
-                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
-                    {PRESET_AVATARS.map((url, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleSelectPreset(url)}
-                        className={`w-10 h-10 rounded-xl overflow-hidden border-2 transition-all hover:scale-105 shrink-0 cursor-pointer ${
-                          currentUser?.profilePicture === url
-                            ? 'border-emerald-700 ring-2 ring-emerald-400'
-                            : 'border-stone-300 hover:border-emerald-600'
-                        }`}
-                      >
-                        <img src={url} alt={`Preset ${i + 1}`} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
+                    <p className="text-[11px] text-stone-500 leading-tight">Upload a profile photo, up to 3 MB.</p>
                   </div>
                 </div>
               </div>

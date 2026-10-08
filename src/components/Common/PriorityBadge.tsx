@@ -22,14 +22,14 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({ priority }) => {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
         <AlertTriangle className="w-3 h-3 text-amber-600" />
-        Urgent
+        Priority
       </span>
     );
   }
 
   return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600 border border-stone-200">
-      {normalizedPriority === 'Normal' ? 'Normal' : 'Unknown priority'}
+      {normalizedPriority === 'Normal' ? 'Standard' : 'Unknown priority'}
     </span>
   );
 };

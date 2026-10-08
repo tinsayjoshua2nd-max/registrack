@@ -1,0 +1,12 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, pnpm-lock.yaml"
+  },
+  "files.exclude": {
+    "**/dist": true,
+    "**/dist-server": true,
+    "**/coverage": true
+  }
+}

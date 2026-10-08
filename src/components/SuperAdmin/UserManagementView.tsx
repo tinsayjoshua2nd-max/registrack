@@ -186,7 +186,7 @@ export const UserManagementView: React.FC = () => {
           className="px-4 py-2.5 rounded-xl font-heading font-bold text-xs text-white bg-emerald-800 hover:bg-emerald-900 shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Provision New Account</span>
+          <span>Create New Staffs Account</span>
         </button>
       </div>
 

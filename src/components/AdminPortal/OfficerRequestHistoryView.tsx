@@ -35,6 +35,8 @@ export const OfficerRequestHistoryView: React.FC = () => {
     restoreDeletedTicket,
     officerRole,
     setAdminView,
+    deletedRequestsHistory,
+    completedRequestsHistory,
   } = useHelpdesk();
 
   const [activeTab, setActiveTab] = useState<'deleted' | 'completed'>('deleted');
@@ -50,13 +52,15 @@ export const OfficerRequestHistoryView: React.FC = () => {
 
   const isRegistrar =
     officerRole === 'superadmin' ||
+    officerRole === 'registrar' ||
     currentUser?.role === 'superadmin' ||
+    currentUser?.staffRole === 'registrar' ||
     currentUser?.name?.toLowerCase().includes('alexander') ||
     currentUser?.name?.toLowerCase().includes('reyes') ||
     currentUser?.name?.toLowerCase().includes('registrar');
 
-  const myDeleted = getMyDeletedRequests();
-  const myCompleted = getMyCompletedRequests();
+  const myDeleted = isRegistrar ? deletedRequestsHistory : getMyDeletedRequests();
+  const myCompleted = isRegistrar ? completedRequestsHistory : getMyCompletedRequests();
 
   const getOfficerBadgeLabel = () => {
     if (isRegistrar) return 'Office of the University Registrar Desk';

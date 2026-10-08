@@ -10,7 +10,6 @@ import { ReportsAnalyticsView } from './ReportsAnalyticsView';
 import { AnnouncementsNotificationsView } from './AnnouncementsNotificationsView';
 import { SystemSettingsView } from './SystemSettingsView';
 import { AuditLogsView } from './AuditLogsView';
-import { BackupRecoveryView } from './BackupRecoveryView';
 import { OfficerRequestHistoryView } from '../AdminPortal/OfficerRequestHistoryView';
 import {
   LayoutDashboard,
@@ -62,13 +61,18 @@ export const SuperAdminLayout: React.FC = () => {
     { id: 'announcements', label: 'Advisories & Alerts', icon: Megaphone },
     { id: 'settings', label: 'System Settings', icon: Settings },
     { id: 'audit-logs', label: 'Audit Trail', icon: ShieldAlert },
-    { id: 'backup', label: 'Backup & Health', icon: Database },
   ];
 
   return (
     <div className="min-h-[100dvh] bg-stone-100 flex flex-col font-sans">
       {/* Top Header */}
       <header className="safe-area-top bg-white border-b border-stone-200 sticky top-0 z-40 shadow-xs">
+        {systemSettings.maintenanceMode && (
+          <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-rose-50 border-b border-rose-300 text-rose-800 text-xs font-bold">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span>Maintenance Mode Active</span>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-3 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & Identity */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -89,14 +93,6 @@ export const SuperAdminLayout: React.FC = () => {
               </p>
             </div>
           </div>
-
-          {/* Center: System Status / Maintenance notice if on */}
-          {systemSettings.maintenanceMode && (
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-bold animate-pulse">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-              <span>MAINTENANCE MODE ACTIVE</span>
-            </div>
-          )}
 
           {/* Right Controls */}
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
@@ -274,7 +270,6 @@ export const SuperAdminLayout: React.FC = () => {
         {superAdminView === 'announcements' && <AnnouncementsNotificationsView />}
         {superAdminView === 'settings' && <SystemSettingsView />}
         {superAdminView === 'audit-logs' && <AuditLogsView />}
-        {superAdminView === 'backup' && <BackupRecoveryView />}
       </main>
 
       {/* Footer */}

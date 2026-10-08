@@ -26,6 +26,7 @@ const SESSION_LIFETIME_SQL = '7 days';
 const BOOTSTRAP_NAME = 'Stevie Ray Rotulo';
 const BOOTSTRAP_EMAIL = 'registrar@registrack.local';
 const SUPERADMIN_OFFICE = 'Office of the University Registrar';
+const MAINTENANCE_INTAKE_MESSAGE = 'New ticket submissions are currently unavailable due to maintenance.';
 const ACCOUNT_ROLES = new Set([
   'student',
   'registrar',
@@ -1159,6 +1160,16 @@ export function registerApi(app: import('express').Express): void {
     try {
       const auth = req.auth;
       if (!auth) return fail(res, 401, 'Your session is no longer valid.');
+      if (!hasRegistrarAccess(auth.accountRole)) {
+        const settingsResult = await pool.query<{ payload: unknown }>(
+          'SELECT payload FROM registrack_data WHERE key = $1',
+          ['systemSettings'],
+        );
+        const settings = settingsResult.rows[0]?.payload;
+        if (isObject(settings) && settings.maintenanceMode === true) {
+          return fail(res, 503, MAINTENANCE_INTAKE_MESSAGE);
+        }
+      }
       if (auth.accountRole !== 'receiver' && !hasRegistrarAccess(auth.accountRole)) {
         return fail(res, 403, 'Only Receiver / Releasing and Registrar Officers can submit new requests.');
       }
@@ -1837,7 +1848,7 @@ function isActiveRequestCategory(value: unknown, categories: Record<string, unkn
 
 function enforceTicketIntake(auth: AuthenticatedAccount, config: TicketIntakeConfig, category: unknown): void {
   if (config.settings.maintenanceMode === true && !hasRegistrarAccess(auth.accountRole)) {
-    throw new ApiError(503, 'New requests are temporarily unavailable while the Registrar system is in maintenance mode.');
+    throw new ApiError(503, MAINTENANCE_INTAKE_MESSAGE);
   }
   if (!isActiveRequestCategory(category, config.categories)) {
     throw new ApiError(400, 'This request category is not active. Choose an available category.');

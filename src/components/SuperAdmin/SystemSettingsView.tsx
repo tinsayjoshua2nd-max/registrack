@@ -269,7 +269,7 @@ export const SystemSettingsView: React.FC = () => {
               <div>
                 <p className="font-bold text-rose-950">Maintenance Mode</p>
                 <p className="text-[11px] text-rose-800">
-                  Shows a “Maintenance Mode Active” banner to all staff and Registrar Officer accounts and blocks new ticket intake from non-Registrar Officer accounts. Students see no banner.
+                  Shows “Maintenance Mode Active” to staff and Registrar Officers, hides it from students, and blocks student and staff ticket submissions with: “New ticket submissions are currently unavailable due to maintenance.”
                 </p>
               </div>
               <input

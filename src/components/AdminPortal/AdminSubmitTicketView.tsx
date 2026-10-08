@@ -31,7 +31,9 @@ export const AdminSubmitTicketView: React.FC = () => {
     submitNewTicket,
     setAdminView,
     currentUser,
+    systemSettings,
   } = useHelpdesk();
+  const maintenanceBlocked = systemSettings.maintenanceMode && currentUser?.role !== 'superadmin';
 
   // Combine student records & registered student user accounts so newly created accounts are immediately visible!
   const allStudentAccounts = useMemo(() => {
@@ -173,6 +175,11 @@ export const AdminSubmitTicketView: React.FC = () => {
   const handleGenerateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (maintenanceBlocked) {
+      setErrorMessage('New ticket submissions are currently unavailable due to maintenance.');
+      return;
+    }
 
     const cleanName = studentName.trim();
     const cleanId = studentId.trim();
@@ -421,10 +428,10 @@ export const AdminSubmitTicketView: React.FC = () => {
         /* Intake Form */
         <form onSubmit={handleGenerateTicket} className="space-y-8">
           {/* Error Banner */}
-          {errorMessage && (
-            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+          {(errorMessage || maintenanceBlocked) && (
+            <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMessage}</span>
+              <span>{maintenanceBlocked ? 'New ticket submissions are currently unavailable due to maintenance.' : errorMessage}</span>
             </div>
           )}
 
@@ -739,9 +746,9 @@ export const AdminSubmitTicketView: React.FC = () => {
                   onChange={(e) => setPriority(e.target.value as TicketPriority)}
                   className="w-full px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-600 outline-none font-semibold"
                 >
-                  <option value="Normal">Normal (Standard 2-3 Days)</option>
-                  <option value="Urgent">Urgent (Expedited / 24-48 Hours)</option>
-                  <option value="Deadline-sensitive">Priority (Same-Day / Deadline Case)</option>
+                  <option value="Normal">Standard (3 to 15 working days)</option>
+                  <option value="Urgent">Priority (On-call)</option>
+                  <option value="Deadline-sensitive">Deadline-sensitive (within the day)</option>
                 </select>
               </div>
 
@@ -763,7 +770,8 @@ export const AdminSubmitTicketView: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full sm:w-auto px-7 py-3 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+              disabled={maintenanceBlocked}
+              className="w-full sm:w-auto px-7 py-3 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
               <span>Generate Support Ticket & Send to Student</span>

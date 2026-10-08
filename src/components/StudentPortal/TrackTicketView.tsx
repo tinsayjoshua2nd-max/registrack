@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHelpdesk } from '../../context/HelpdeskContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { PriorityBadge } from '../Common/PriorityBadge';
@@ -28,6 +28,11 @@ export const TrackTicketView: React.FC = () => {
 
   const [inputVal, setInputVal] = useState(trackingTicketNumber);
   const [copied, setCopied] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  useEffect(() => {
+    if (trackingTicketNumber) setInputVal(trackingTicketNumber);
+  }, [trackingTicketNumber]);
 
   // Tickets filed for the currently logged-in student (by 8-digit ID, email, or name)
   const studentTickets = tickets.filter((t) => {
@@ -42,20 +47,28 @@ export const TrackTicketView: React.FC = () => {
   const selectedTicketBelongsToStudent = selectedTicket
     ? studentTickets.some((ticket) => ticket.id === selectedTicket.id)
     : false;
-  const activeTicket = selectedTicketBelongsToStudent && selectedTicket?.ticketNumber === inputVal.trim()
+  const normalizeTicketNumber = (value: string) => value.trim().toUpperCase().replace(/-/g, '');
+  const activeTicket = selectedTicketBelongsToStudent && selectedTicket &&
+    normalizeTicketNumber(selectedTicket.ticketNumber) === normalizeTicketNumber(inputVal)
     ? selectedTicket
     : inputVal.trim()
-      ? studentTickets.find((ticket) => ticket.ticketNumber === inputVal.trim()) || null
+      ? studentTickets.find((ticket) => normalizeTicketNumber(ticket.ticketNumber) === normalizeTicketNumber(inputVal)) || null
       : studentTickets[0] || null;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputVal.trim()) return;
+    if (!inputVal.trim()) {
+      setSearchError('Enter a ticket number to search.');
+      return;
+    }
     const clean = inputVal.trim();
-    const found = studentTickets.find((ticket) => ticket.ticketNumber === clean);
+    const normalizedInput = normalizeTicketNumber(clean);
+    const found = studentTickets.find((ticket) => normalizeTicketNumber(ticket.ticketNumber) === normalizedInput);
     if (found) {
       setSelectedTicket(found);
       setTrackingTicketNumber(found.ticketNumber);
+      setInputVal(found.ticketNumber);
+      setSearchError('');
     } else {
       // Check if user entered an 8-digit student ID
       const byStudentId = studentTickets.find((t) => t.studentId === clean);
@@ -63,9 +76,11 @@ export const TrackTicketView: React.FC = () => {
         setSelectedTicket(byStudentId);
         setTrackingTicketNumber(byStudentId.ticketNumber);
         setInputVal(byStudentId.ticketNumber);
+        setSearchError('');
         return;
       }
       setSelectedTicket(null);
+      setSearchError('No matching request was found in your account. Check the ticket number and try again.');
     }
   };
 
@@ -73,6 +88,7 @@ export const TrackTicketView: React.FC = () => {
     setInputVal(t.ticketNumber);
     setTrackingTicketNumber(t.ticketNumber);
     setSelectedTicket(t);
+    setSearchError('');
   };
 
   const handleCopy = () => {
@@ -176,7 +192,12 @@ export const TrackTicketView: React.FC = () => {
               <input
                 type="text"
                 value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
+                onChange={(e) => {
+                  setInputVal(e.target.value);
+                  setSearchError('');
+                }}
+                aria-label="Ticket number"
+                autoComplete="off"
                 placeholder="Enter your ticket number"
                 className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 font-mono font-medium"
               />
@@ -190,6 +211,7 @@ export const TrackTicketView: React.FC = () => {
             </button>
           </form>
         </div>
+        {searchError && <p role="alert" className="mt-3 text-xs font-medium text-rose-700">{searchError}</p>}
 
       </div>
 
